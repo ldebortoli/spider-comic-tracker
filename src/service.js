@@ -1,0 +1,986 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const zlib = require("node:zlib");
+const { pipeline } = require("node:stream/promises");
+
+const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
+const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
+const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex } = require("./utils");
+
+function isIncludedDecision(decision) {
+  return decision === "auto_added" || decision === "manual_added";
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "desconocido";
+  }
+
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let index = 0;
+
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+class ComicTrackerService {
+  constructor({ db, config }) {
+    this.db = db;
+    this.config = config;
+    this.telegram = null;
+    this.currentSyncPromise = null;
+    this.currentCatalogImportPromise = null;
+    this.currentWeeklyUpdatePromise = null;
+    this.currentQuarterlyRefreshPromise = null;
+    this.schedulerHandle = null;
+  }
+
+  attachTelegram(telegram) {
+    this.telegram = telegram;
+  }
+
+  getDashboard() {
+    return {
+      stats: this.db.getDashboardStats(),
+      lastSync: this.db.getLastSyncRun(),
+      backup: this.getBackupStatus(),
+      pendingReviews: this.db.listPendingReviews(),
+      schedule: {
+        enabled: this.config.schedule.enabled,
+        day: this.config.schedule.day,
+        hour: this.config.schedule.hour,
+        minute: this.config.schedule.minute,
+        timezone: this.config.timezone,
+        windowsTaskInstalled: fs.existsSync(path.resolve(process.cwd(), "data/weekly-task-installed.json"))
+      },
+      weeklyUpdate: this.getWeeklyUpdateStatus(),
+      quarterlyRefresh: this.getQuarterlyRefreshStatus(),
+      telegram: this.telegram?.getStatus?.() || { configured: false, running: false },
+      config: {
+        telegramConfigured: Boolean(this.config.telegram.botToken && this.config.telegram.reviewChatId),
+        telegramUserRestricted: Boolean(this.config.telegram.allowedUserId),
+        syncRunning: Boolean(this.currentSyncPromise),
+        catalogImportRunning: Boolean(this.currentCatalogImportPromise),
+        weeklyUpdateRunning: Boolean(this.currentWeeklyUpdatePromise),
+        quarterlyRefreshRunning: Boolean(this.currentQuarterlyRefreshPromise)
+      }
+    };
+  }
+
+  getBackupStatus() {
+    return {
+      enabled: this.config.backup.enabled,
+      intervalWeeks: this.config.backup.intervalWeeks,
+      lastAttemptAt: this.db.getState("backup_last_attempt_at", ""),
+      lastSentAt: this.db.getState("backup_last_sent_at", ""),
+      lastFileName: this.db.getState("backup_last_file_name", ""),
+      lastSizeBytes: Number(this.db.getState("backup_last_size_bytes", "0") || 0),
+      lastStatus: this.db.getState("backup_last_status", "never"),
+      lastReason: this.db.getState("backup_last_reason", "")
+    };
+  }
+
+  setBackupStatus({ attemptAt, sentAt, fileName, sizeBytes, status, reason }) {
+    if (attemptAt !== undefined) {
+      this.db.setState("backup_last_attempt_at", attemptAt || "");
+    }
+
+    if (sentAt !== undefined) {
+      this.db.setState("backup_last_sent_at", sentAt || "");
+    }
+
+    if (fileName !== undefined) {
+      this.db.setState("backup_last_file_name", fileName || "");
+    }
+
+    if (sizeBytes !== undefined) {
+      this.db.setState("backup_last_size_bytes", String(sizeBytes || 0));
+    }
+
+    if (status !== undefined) {
+      this.db.setState("backup_last_status", status || "");
+    }
+
+    if (reason !== undefined) {
+      this.db.setState("backup_last_reason", reason || "");
+    }
+  }
+
+  backupIsDue() {
+    if (!this.config.backup.enabled) {
+      return false;
+    }
+
+    const lastSentAt = this.db.getState("backup_last_sent_at", "");
+
+    if (!lastSentAt) {
+      return true;
+    }
+
+    const lastSentMs = Date.parse(lastSentAt);
+
+    if (Number.isNaN(lastSentMs)) {
+      return true;
+    }
+
+    const intervalMs = this.config.backup.intervalWeeks * 7 * 24 * 60 * 60 * 1000;
+    return (Date.now() - lastSentMs) >= intervalMs;
+  }
+
+  async compressBackup(sourcePath, targetPath) {
+    await pipeline(
+      fs.createReadStream(sourcePath),
+      zlib.createGzip({ level: zlib.constants.Z_BEST_SPEED }),
+      fs.createWriteStream(targetPath)
+    );
+  }
+
+  cleanupBackupArtifacts(paths) {
+    for (const candidate of paths) {
+      if (!candidate) {
+        continue;
+      }
+
+      try {
+        if (fs.existsSync(candidate)) {
+          fs.unlinkSync(candidate);
+        }
+      } catch {
+        // Ignore cleanup failures for temp artifacts.
+      }
+    }
+  }
+
+  pruneBackupDirectory() {
+    fs.mkdirSync(this.config.backup.dir, { recursive: true });
+    const files = fs.readdirSync(this.config.backup.dir)
+      .filter((name) => name.endsWith(".sqlite.gz"))
+      .map((name) => {
+        const absolutePath = path.resolve(this.config.backup.dir, name);
+        return {
+          name,
+          absolutePath,
+          mtimeMs: fs.statSync(absolutePath).mtimeMs
+        };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+    for (const file of files.slice(Math.max(0, this.config.backup.retentionCount))) {
+      this.cleanupBackupArtifacts([file.absolutePath]);
+    }
+  }
+
+  async maybeSendPeriodicBackup({ triggerSource, weekYear, weekNumber }) {
+    if (!this.backupIsDue()) {
+      return { attempted: false, reason: "not_due" };
+    }
+
+    return this.createAndSendBackup({ triggerSource, weekYear, weekNumber });
+  }
+
+  async createAndSendBackup({ triggerSource, weekYear, weekNumber }) {
+    const stamp = nowIso().replace(/[:.]/g, "-");
+    const baseName = `comics-backup-${stamp}`;
+    const rawPath = path.resolve(this.config.backup.dir, `${baseName}.sqlite`);
+    const gzipPath = path.resolve(this.config.backup.dir, `${baseName}.sqlite.gz`);
+    const weekKey = buildWeekKey(weekYear, weekNumber);
+    const sentAt = nowIso();
+
+    fs.mkdirSync(this.config.backup.dir, { recursive: true });
+
+    try {
+      this.db.createBackupSnapshot(rawPath);
+      const rawStats = fs.statSync(rawPath);
+
+      if (rawStats.size > this.config.backup.maxBytes) {
+        const reason = `Backup omitido: ${path.basename(rawPath)} pesa ${formatBytes(rawStats.size)}, por encima del límite configurado de ${formatBytes(this.config.backup.maxBytes)}.`;
+        this.setBackupStatus({
+          attemptAt: sentAt,
+          status: "skipped_too_large",
+          reason,
+          fileName: path.basename(rawPath),
+          sizeBytes: rawStats.size
+        });
+
+        if (this.telegram && this.telegram.canSendBackups()) {
+          await this.telegram.sendBackupNotice({
+            text: [
+              "Backup periódico omitido",
+              "",
+              `Semana: ${weekKey}`,
+              `Origen: ${triggerSource}`,
+              reason
+            ].join("\n")
+          });
+        }
+
+        this.cleanupBackupArtifacts([rawPath]);
+        return { attempted: true, sent: false, reason: "too_large" };
+      }
+
+      await this.compressBackup(rawPath, gzipPath);
+      const gzipStats = fs.statSync(gzipPath);
+      this.cleanupBackupArtifacts([rawPath]);
+
+      if (this.telegram && this.telegram.canSendBackups() && gzipStats.size <= this.config.backup.telegramMaxBytes) {
+        await this.telegram.sendBackupFile({
+          filePath: gzipPath,
+          fileName: path.basename(gzipPath),
+          caption: [
+            "Backup periódico de base de datos",
+            `Semana: ${weekKey}`,
+            `Origen: ${triggerSource}`,
+            `Tamaño comprimido: ${formatBytes(gzipStats.size)}`
+          ].join("\n")
+        });
+
+        this.setBackupStatus({
+          attemptAt: sentAt,
+          sentAt,
+          fileName: path.basename(gzipPath),
+          sizeBytes: gzipStats.size,
+          status: "sent",
+          reason: `Backup enviado por Telegram (${formatBytes(gzipStats.size)}).`
+        });
+      } else {
+        const reason = this.telegram && this.telegram.canSendBackups()
+          ? `Backup generado pero no enviado: ${path.basename(gzipPath)} pesa ${formatBytes(gzipStats.size)} y el Bot API solo permite hasta ${formatBytes(this.config.backup.telegramMaxBytes)} por documento.`
+          : `Backup generado localmente, pero el backup de Telegram no está configurado. Archivo: ${path.basename(gzipPath)} (${formatBytes(gzipStats.size)}).`;
+
+        this.setBackupStatus({
+          attemptAt: sentAt,
+          fileName: path.basename(gzipPath),
+          sizeBytes: gzipStats.size,
+          status: "stored_local",
+          reason
+        });
+
+        if (this.telegram && this.telegram.canSendBackups()) {
+          await this.telegram.sendBackupNotice({
+            text: [
+              "Backup periódico generado",
+              "",
+              `Semana: ${weekKey}`,
+              `Origen: ${triggerSource}`,
+              reason
+            ].join("\n")
+          });
+        }
+      }
+
+      this.pruneBackupDirectory();
+      return { attempted: true, sent: true };
+    } catch (error) {
+      const reason = `Falló el backup periódico: ${error.message}`;
+      this.setBackupStatus({
+        attemptAt: sentAt,
+        status: "failed",
+        reason
+      });
+
+      if (this.telegram && this.telegram.canSendBackups()) {
+        await this.telegram.sendBackupNotice({
+          text: [
+            "Falló el backup periódico",
+            "",
+            `Semana: ${weekKey}`,
+            `Origen: ${triggerSource}`,
+            `Error: ${error.message}`
+          ].join("\n")
+        });
+      }
+
+      this.cleanupBackupArtifacts([rawPath, gzipPath]);
+      throw error;
+    }
+  }
+
+  listComics(filters) {
+    return this.db.listIncludedComics(filters);
+  }
+
+  listCatalogIssues(filters) {
+    return this.db.listCatalogIssues(filters);
+  }
+
+  listCatalogCharacters() {
+    return this.db.listCatalogCharacters();
+  }
+
+  getCatalogStats(characterSlug, universeGroup) {
+    return this.db.getCatalogStats(characterSlug, universeGroup);
+  }
+
+  listSpanishEditions(filters) {
+    return this.db.listSpanishEditions(filters);
+  }
+
+  createSpanishEdition(payload) {
+    return this.db.saveSpanishEdition(null, payload);
+  }
+
+  updateSpanishEdition(id, payload) {
+    return this.db.saveSpanishEdition(id, payload);
+  }
+
+  deleteSpanishEdition(id) {
+    return this.db.deleteSpanishEdition(id);
+  }
+
+  searchCatalogIssues(query, limit) {
+    return this.db.searchCatalogIssues(query, limit);
+  }
+
+  exportCatalogCsv() {
+    const quote = (value) => `"${String(value ?? "").replace(/"/g, "\"\"")}"`;
+    const headers = [
+      "Título",
+      "Personaje",
+      "Realidad del personaje",
+      "Grupo",
+      "Serie",
+      "Volumen",
+      "Issue",
+      "Fecha de publicación",
+      "Fuente de la fecha",
+      "Precisión de la fecha",
+      "Guionistas",
+      "Tipo de aparición",
+      "Tengo",
+      "Editorial",
+      "Edición o tomo",
+      "Notas",
+      "Marvel Fandom"
+    ];
+    const rows = this.db.listAllCatalogMemberships().map(({ character, issue }) => [
+      issue.title,
+      character.displayName,
+      character.reality,
+      character.kind === "symbiote" ? "Simbionte" : "Arácnido",
+      issue.seriesName,
+      issue.volumeNumber ?? "",
+      issue.issueLabel,
+      issue.releaseDate || "",
+      issue.dateSource === "cover" ? "Cover Date" : issue.dateSource === "release" ? "Release Date" : issue.dateSource || "",
+      issue.datePrecision || "",
+      issue.writers.join("; "),
+      issue.appearanceType === "minor" ? "Aparición menor" : "Aparición",
+      issue.owned ? "Sí" : "No",
+      issue.ownedPublisher,
+      issue.ownedEdition,
+      issue.collectionNotes,
+      issue.fandomUrl
+    ]);
+
+    return `\uFEFF${[headers, ...rows].map((row) => row.map(quote).join(",")).join("\r\n")}`;
+  }
+
+  getCatalogImportStatus() {
+    let stored = {};
+
+    try {
+      stored = JSON.parse(this.db.getState("catalog_import_status", "{}"));
+    } catch {
+      stored = {};
+    }
+
+    return {
+      ...stored,
+      running: Boolean(this.currentCatalogImportPromise)
+    };
+  }
+
+  getWeeklyUpdateStatus() {
+    let stored = {};
+
+    try {
+      stored = JSON.parse(this.db.getState("weekly_update_status", "{}"));
+    } catch {
+      stored = {};
+    }
+
+    return {
+      ...stored,
+      running: Boolean(this.currentWeeklyUpdatePromise)
+    };
+  }
+
+  saveWeeklyUpdateStatus(status) {
+    this.db.setState("weekly_update_status", JSON.stringify(status));
+  }
+
+  ensureQuarterlyRefreshBaseline() {
+    if (!this.db.getState("catalog_full_refresh_last_at", "")) {
+      this.db.setState("catalog_full_refresh_last_at", nowIso());
+    }
+  }
+
+  getQuarterlyRefreshStatus() {
+    let stored = {};
+    try {
+      stored = JSON.parse(this.db.getState("quarterly_refresh_status", "{}"));
+    } catch {
+      stored = {};
+    }
+    const lastRefreshAt = this.db.getState("catalog_full_refresh_last_at", "");
+    const lastDate = lastRefreshAt ? new Date(lastRefreshAt) : null;
+    const nextDate = lastDate && !Number.isNaN(lastDate.getTime()) ? new Date(lastDate) : null;
+    if (nextDate) nextDate.setUTCMonth(nextDate.getUTCMonth() + this.config.catalogRefresh.intervalMonths);
+    return {
+      ...stored,
+      enabled: this.config.catalogRefresh.enabled,
+      intervalMonths: this.config.catalogRefresh.intervalMonths,
+      lastRefreshAt,
+      nextRefreshAt: nextDate?.toISOString() || "",
+      due: Boolean(nextDate && Date.now() >= nextDate.getTime()),
+      running: Boolean(this.currentQuarterlyRefreshPromise)
+    };
+  }
+
+  startQuarterlyRefresh({ triggerSource = "quarterly", force = false } = {}) {
+    if (!this.config.catalogRefresh.enabled && !force) return { started: false, disabled: true };
+    if (this.currentSyncPromise || this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise || this.currentQuarterlyRefreshPromise) {
+      return { started: false, running: true };
+    }
+    const startedAt = nowIso();
+    this.db.setState("quarterly_refresh_status", JSON.stringify({
+      status: "running",
+      stage: "refreshing_all_metadata",
+      triggerSource,
+      startedAt,
+      finishedAt: ""
+    }));
+    const promise = this.performCatalogImport({ incremental: false, triggerSource })
+      .then((result) => {
+        this.db.setState("quarterly_refresh_status", JSON.stringify({
+          status: "completed",
+          stage: "completed",
+          triggerSource,
+          startedAt,
+          finishedAt: nowIso(),
+          importedComics: result.importedComics || 0,
+          errors: result.errors?.length || 0
+        }));
+        return result;
+      })
+      .catch((error) => {
+        this.db.setState("quarterly_refresh_status", JSON.stringify({
+          status: "failed",
+          stage: "failed",
+          triggerSource,
+          startedAt,
+          finishedAt: nowIso(),
+          errorMessage: error.message
+        }));
+        console.error("Error en la revisión trimestral de metadatos:", error);
+      })
+      .finally(() => {
+        if (this.currentCatalogImportPromise === promise) this.currentCatalogImportPromise = null;
+        if (this.currentQuarterlyRefreshPromise === promise) this.currentQuarterlyRefreshPromise = null;
+      });
+    this.currentCatalogImportPromise = promise;
+    this.currentQuarterlyRefreshPromise = promise;
+    return { started: true, running: true, triggerSource, startedAt };
+  }
+
+  maybeRunQuarterlyRefresh() {
+    this.ensureQuarterlyRefreshBaseline();
+    const status = this.getQuarterlyRefreshStatus();
+    if (status.enabled && status.due) this.startQuarterlyRefresh({ triggerSource: "quarterly" });
+  }
+
+  updateCatalogCollection(id, payload) {
+    return this.db.updateCatalogCollection(id, payload);
+  }
+
+  startCatalogImport({ characterSlug = "", incremental = false } = {}) {
+    if (this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise) {
+      return { started: false, running: true };
+    }
+
+    const selected = characterSlug ? this.db.getCatalogCharacter(characterSlug) : null;
+
+    if (characterSlug && !selected) {
+      return { started: false, running: false, notFound: true };
+    }
+
+    this.currentCatalogImportPromise = this.performCatalogImport({ characterSlug, incremental })
+      .catch((error) => {
+        console.error("Error importando el catálogo histórico:", error);
+      })
+      .finally(() => {
+        this.currentCatalogImportPromise = null;
+      });
+
+    return {
+      started: true,
+      running: true,
+      characterSlug,
+      incremental,
+      startingFrom: selected?.lastComicDate || ""
+    };
+  }
+
+  async performCatalogImport({ characterSlug = "", incremental = false, triggerSource = "manual", onProgress } = {}) {
+    const importContext = {
+      characterSlug,
+      incremental,
+      triggerSource,
+      startingFrom: characterSlug ? this.db.getCatalogCharacter(characterSlug)?.lastComicDate || "" : ""
+    };
+    const saveProgress = (progress) => {
+      const status = { ...importContext, ...progress };
+      this.db.setState("catalog_import_status", JSON.stringify(status));
+      onProgress?.(status);
+    };
+
+    saveProgress({
+      stage: "starting",
+      running: true,
+      startedAt: nowIso(),
+      ...importContext
+    });
+
+    try {
+      if (!characterSlug) {
+        const roster = await discoverCatalogRoster({ baseUrl: this.config.marvelBaseUrl });
+        this.db.upsertCatalogCharacters(roster);
+      }
+
+      const characters = characterSlug
+        ? this.db.listCatalogCharacters().filter((character) => character.slug === characterSlug)
+        : this.db.listCatalogCharacters();
+      const result = await importCharacterCatalogs({
+        baseUrl: this.config.marvelBaseUrl,
+        characters,
+        concurrency: 5,
+        refreshExisting: !incremental,
+        hasIssue: (pageId) => Boolean(this.db.getCatalogIssueByFandomPageId(pageId)),
+        onItems: (items) => this.db.upsertCatalogIssues(items),
+        onCharacterMembers: (character, members) => this.db.replaceCatalogCharacterIssues(
+          character.slug,
+          members,
+          "completed"
+        ),
+        onProgress: (progress) => saveProgress({ ...progress, running: true })
+      });
+      const finalStatus = {
+        ...result,
+        running: false,
+        characterSlug,
+        incremental,
+        startingFrom: characterSlug ? characters[0]?.lastComicDate || "" : ""
+      };
+      saveProgress(finalStatus);
+      if (!characterSlug && !incremental) {
+        this.db.setState("catalog_full_refresh_last_at", finalStatus.finishedAt || nowIso());
+      }
+      return finalStatus;
+    } catch (error) {
+      if (characterSlug) {
+        this.db.markCatalogCharacterSyncFailed(characterSlug);
+      }
+      const failedStatus = {
+        ...this.getCatalogImportStatus(),
+        stage: "failed",
+        running: false,
+        finishedAt: nowIso(),
+        errorMessage: error.message
+      };
+      saveProgress(failedStatus);
+      throw error;
+    }
+  }
+
+  listTrackedCharacters() {
+    return this.db.getTrackedCharacters();
+  }
+
+  createTrackedCharacter(payload) {
+    return this.db.createTrackedCharacter(payload);
+  }
+
+  updateTrackedCharacter(id, payload) {
+    return this.db.updateTrackedCharacter(id, payload);
+  }
+
+  deleteTrackedCharacter(id) {
+    return this.db.deleteTrackedCharacter(id);
+  }
+
+  startScheduler() {
+    if (this.schedulerHandle) {
+      return;
+    }
+
+    this.ensureQuarterlyRefreshBaseline();
+
+    this.schedulerHandle = setInterval(() => {
+      this.maybeRunScheduledSync().catch((error) => {
+        console.error("Error en scheduler semanal:", error);
+      });
+      this.maybeRunQuarterlyRefresh();
+    }, 60 * 1000);
+
+    this.maybeRunScheduledSync().catch((error) => {
+      console.error("Error inicial del scheduler:", error);
+    });
+    this.maybeRunQuarterlyRefresh();
+  }
+
+  async maybeRunScheduledSync() {
+    if (!this.config.schedule.enabled) {
+      return;
+    }
+
+    if (this.currentSyncPromise || this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise) {
+      return;
+    }
+
+    const now = new Date();
+    const weekInfo = getIsoWeekInfo(now, this.config.timezone);
+    const currentWeekKey = buildWeekKey(weekInfo.isoYear, weekInfo.weekNumber);
+    const attemptKey = this.db.getState("last_scheduled_attempt_week_key", "");
+    const scheduledDayIndex = scheduleDayIndex(this.config.schedule.day);
+    const currentMinuteOfDay = weekInfo.localHour * 60 + weekInfo.localMinute;
+    const scheduledMinuteOfDay = this.config.schedule.hour * 60 + this.config.schedule.minute;
+    const shouldRunNow = (
+      weekInfo.weekdayIndex > scheduledDayIndex ||
+      (weekInfo.weekdayIndex === scheduledDayIndex && currentMinuteOfDay >= scheduledMinuteOfDay)
+    );
+
+    if (!shouldRunNow || attemptKey === currentWeekKey) {
+      return;
+    }
+
+    const result = this.startWeeklyUpdate({
+      triggerSource: "scheduled",
+      weekYear: weekInfo.isoYear,
+      weekNumber: weekInfo.weekNumber
+    });
+
+    if (result.started) {
+      this.db.setState("last_scheduled_attempt_week_key", currentWeekKey);
+    }
+  }
+
+  startWeeklyUpdate({ triggerSource = "scheduled", weekYear, weekNumber } = {}) {
+    if (this.currentWeeklyUpdatePromise || this.currentSyncPromise || this.currentCatalogImportPromise) {
+      return { started: false, running: true };
+    }
+
+    const nowWeek = getIsoWeekInfo(new Date(), this.config.timezone);
+    const finalWeekYear = weekYear || nowWeek.isoYear;
+    const finalWeekNumber = weekNumber || nowWeek.weekNumber;
+    const weekKey = buildWeekKey(finalWeekYear, finalWeekNumber);
+    this.db.setState("last_scheduled_attempt_week_key", weekKey);
+
+    this.currentWeeklyUpdatePromise = this.performWeeklyUpdate({
+      triggerSource,
+      weekYear: finalWeekYear,
+      weekNumber: finalWeekNumber
+    }).catch((error) => {
+      console.error("Error en actualización semanal completa:", error);
+    }).finally(() => {
+      this.currentWeeklyUpdatePromise = null;
+    });
+
+    return { started: true, running: true, weekYear: finalWeekYear, weekNumber: finalWeekNumber, weekKey };
+  }
+
+  async performWeeklyUpdate({ triggerSource, weekYear, weekNumber }) {
+    const weekKey = buildWeekKey(weekYear, weekNumber);
+    const startedAt = nowIso();
+    this.saveWeeklyUpdateStatus({
+      running: true,
+      status: "running",
+      stage: "weekly_review",
+      triggerSource,
+      weekKey,
+      startedAt,
+      finishedAt: "",
+      errorMessage: ""
+    });
+
+    try {
+      this.currentSyncPromise = this.performSync({ triggerSource, weekYear, weekNumber });
+      const weeklyReview = await this.currentSyncPromise;
+      this.currentSyncPromise = null;
+
+      this.saveWeeklyUpdateStatus({
+        running: true,
+        status: "running",
+        stage: "catalog_update",
+        triggerSource,
+        weekKey,
+        startedAt,
+        finishedAt: "",
+        errorMessage: "",
+        weeklyReview
+      });
+
+      this.currentCatalogImportPromise = this.performCatalogImport({ incremental: true, triggerSource: "weekly" });
+      const catalogUpdate = await this.currentCatalogImportPromise;
+      this.currentCatalogImportPromise = null;
+
+      const completed = {
+        running: false,
+        status: "completed",
+        stage: "completed",
+        triggerSource,
+        weekKey,
+        startedAt,
+        finishedAt: nowIso(),
+        errorMessage: "",
+        weeklyReview,
+        catalogUpdate: {
+          importedComics: catalogUpdate.importedComics || 0,
+          existingSkipped: catalogUpdate.existingSkipped || 0,
+          errors: catalogUpdate.errors?.length || 0
+        }
+      };
+      this.saveWeeklyUpdateStatus(completed);
+      return completed;
+    } catch (error) {
+      this.currentSyncPromise = null;
+      this.currentCatalogImportPromise = null;
+      const failed = {
+        ...this.getWeeklyUpdateStatus(),
+        running: false,
+        status: "failed",
+        stage: "failed",
+        triggerSource,
+        weekKey,
+        startedAt,
+        finishedAt: nowIso(),
+        errorMessage: error.message
+      };
+      this.saveWeeklyUpdateStatus(failed);
+      throw error;
+    }
+  }
+
+  startSync({ triggerSource = "manual", weekYear, weekNumber } = {}) {
+    if (this.currentSyncPromise || this.currentWeeklyUpdatePromise) {
+      return { started: false, running: true };
+    }
+
+    const nowWeek = getIsoWeekInfo(new Date(), this.config.timezone);
+    const finalWeekYear = weekYear || nowWeek.isoYear;
+    const finalWeekNumber = weekNumber || nowWeek.weekNumber;
+
+    this.currentSyncPromise = this.performSync({
+      triggerSource,
+      weekYear: finalWeekYear,
+      weekNumber: finalWeekNumber
+    }).finally(() => {
+      this.currentSyncPromise = null;
+    });
+
+    return {
+      started: true,
+      running: true,
+      weekYear: finalWeekYear,
+      weekNumber: finalWeekNumber,
+      weekKey: buildWeekKey(finalWeekYear, finalWeekNumber)
+    };
+  }
+
+  resolveDecision(existingComic, automaticDecision) {
+    if (!existingComic) {
+      return automaticDecision;
+    }
+
+    if (existingComic.decision === "manual_added" || existingComic.decision === "manual_rejected") {
+      return {
+        ...automaticDecision,
+        decision: existingComic.decision,
+        reason: existingComic.decisionReason || automaticDecision.reason,
+        matchSummary: automaticDecision.matchSummary,
+        originalityStatus: automaticDecision.originalityStatus,
+        originalityReason: automaticDecision.originalityReason
+      };
+    }
+
+    if (existingComic.decision === "pending_review" && automaticDecision.decision === "pending_review") {
+      return {
+        ...automaticDecision,
+        reason: existingComic.decisionReason || automaticDecision.reason,
+        matchSummary: automaticDecision.matchSummary,
+        originalityStatus: automaticDecision.originalityStatus,
+        originalityReason: automaticDecision.originalityReason
+      };
+    }
+
+    return automaticDecision;
+  }
+
+  summarizeTransition(summary, previousDecision, nextDecision, title) {
+    summary.processed += 1;
+
+    if (nextDecision === "pending_review") {
+      if (previousDecision !== "pending_review") {
+        summary.pendingReview += 1;
+        summary.pendingTitles.push(title);
+      } else {
+        summary.pendingAlreadyOpen += 1;
+      }
+      return;
+    }
+
+    if (isIncludedDecision(nextDecision)) {
+      if (!isIncludedDecision(previousDecision)) {
+        summary.added += 1;
+        summary.addedTitles.push(title);
+      } else {
+        summary.alreadyIncluded += 1;
+      }
+      return;
+    }
+
+    if (nextDecision === "auto_rejected" || nextDecision === "manual_rejected") {
+      if (previousDecision !== nextDecision) {
+        summary.rejected += 1;
+        summary.rejectedTitles.push(title);
+      } else {
+        summary.alreadyRejected += 1;
+      }
+    }
+  }
+
+  async performSync({ triggerSource, weekYear, weekNumber }) {
+    const runId = this.db.createSyncRun({ weekYear, weekNumber, triggerSource });
+    const summary = {
+      weekKey: buildWeekKey(weekYear, weekNumber),
+      processed: 0,
+      added: 0,
+      rejected: 0,
+      pendingReview: 0,
+      alreadyIncluded: 0,
+      alreadyRejected: 0,
+      pendingAlreadyOpen: 0,
+      errors: 0,
+      addedTitles: [],
+      rejectedTitles: [],
+      pendingTitles: [],
+      erroredTitles: []
+    };
+
+    try {
+      const trackedCharacters = this.db.getTrackedCharacters();
+      const releases = await fetchWeekReleases({
+        baseUrl: this.config.marvelBaseUrl,
+        weekYear,
+        weekNumber
+      });
+
+      for (const member of releases.members) {
+        try {
+          const details = await fetchComicDetails({
+            baseUrl: this.config.marvelBaseUrl,
+            pageTitle: member.pageTitle
+          });
+
+          const existing = this.db.getComicByPageTitle(member.pageTitle);
+          const automaticDecision = classifyComic(details, trackedCharacters);
+          const finalDecision = this.resolveDecision(existing, automaticDecision);
+          const comic = this.db.upsertComic({
+            ...details,
+            weekYear,
+            weekNumber,
+            weekKey: buildWeekKey(weekYear, weekNumber),
+            matchSummary: finalDecision.matchSummary,
+            originalityStatus: finalDecision.originalityStatus,
+            originalityReason: finalDecision.originalityReason,
+            decision: finalDecision.decision,
+            decisionReason: finalDecision.reason,
+            lastSyncRunId: runId
+          });
+
+          this.db.replaceComicCharacters(comic.id, buildCharacterRows(details, automaticDecision));
+          this.summarizeTransition(summary, existing?.decision || "", comic.decision, comic.title);
+
+          if (comic.decision === "pending_review") {
+            const review = this.db.createOrGetPendingReview(comic.id);
+
+            if (this.telegram && this.telegram.canSendReviews() && !review.telegramMessageId) {
+              const attached = await this.telegram.sendReviewRequest(review);
+              this.db.attachTelegramMessage(review.id, attached);
+            }
+          }
+        } catch (error) {
+          summary.errors += 1;
+          summary.erroredTitles.push(member.pageTitle);
+          console.error(`Error procesando ${member.pageTitle}:`, error);
+        }
+      }
+
+      this.db.finishSyncRun(runId, {
+        status: "completed",
+        summary
+      });
+
+      try {
+        await this.maybeSendPeriodicBackup({
+          triggerSource,
+          weekYear,
+          weekNumber
+        });
+      } catch (backupError) {
+        console.error("Error generando o enviando backup:", backupError);
+      }
+
+      if (this.telegram && this.telegram.canSendSummary()) {
+        await this.telegram.sendSummary({
+          ...summary,
+          triggerSource,
+          weekYear,
+          weekNumber
+        });
+      }
+
+      return summary;
+    } catch (error) {
+      this.db.finishSyncRun(runId, {
+        status: "failed",
+        summary,
+        errorMessage: error.message
+      });
+
+      if (this.telegram && this.telegram.canSendSummary()) {
+        await this.telegram.sendSummary({
+          ...summary,
+          triggerSource,
+          weekYear,
+          weekNumber,
+          failed: true,
+          errorMessage: error.message
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  resolveReview(reviewId, action, user) {
+    return this.db.resolveReviewDecision(reviewId, action, user);
+  }
+
+  getRuntimeStatus() {
+    return {
+      syncRunning: Boolean(this.currentSyncPromise),
+      catalogImportRunning: Boolean(this.currentCatalogImportPromise),
+      weeklyUpdateRunning: Boolean(this.currentWeeklyUpdatePromise),
+      quarterlyRefreshRunning: Boolean(this.currentQuarterlyRefreshPromise)
+    };
+  }
+}
+
+module.exports = {
+  ComicTrackerService
+};

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spider Tracker</title>
+    <link rel="icon" type="image/png" href="/spider-tracker-icon.png" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <main class="app-shell">
+      <section class="hero panel">
+        <div>
+          <p class="eyebrow">Spider-Verse y simbiontes</p>
+          <h1>Catálogo histórico y control de tu colección.</h1>
+          <p class="lead">
+            Una lista independiente por personaje arácnido o simbionte, con fecha, guionistas y tapa según Marvel Database.
+            Los cómics compartidos aparecen en todas las listas correspondientes y podés marcar cuáles cubren tus ediciones en español.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="catalog-import-button" class="button button-primary">Importar o actualizar todos</button>
+          <a href="#spanish-editions" class="button button-secondary" data-open-tab="spanish">Ediciones en español</a>
+          <a href="/api/catalog/export.csv" class="button button-secondary">Exportar CSV</a>
+          <button id="sync-button" class="button button-primary">Revisar semana actual</button>
+          <button id="refresh-button" class="button button-secondary">Actualizar vista</button>
+          <button id="system-info-button" class="button button-secondary">Recursos y servidor</button>
+          <div id="sync-status" class="sync-status">Listo</div>
+          <div id="weekly-update-meta" class="weekly-update-meta"></div>
+        </div>
+      </section>
+
+      <nav class="app-tabs" role="tablist" aria-label="Secciones de la aplicación">
+        <button class="app-tab is-active" type="button" role="tab" aria-selected="true" data-app-tab="usa">Issues USA</button>
+        <button class="app-tab" type="button" role="tab" aria-selected="false" data-app-tab="spanish">Panini y ediciones en español</button>
+        <button class="app-tab" type="button" role="tab" aria-selected="false" data-app-tab="tracking">Seguimiento complementario</button>
+      </nav>
+
+      <section class="panel catalog-panel app-tab-panel is-active" data-app-tab-panel="usa">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Catálogos de apariciones</p>
+            <h2>Listas por personaje</h2>
+            <p id="catalog-source-meta" class="muted"></p>
+          </div>
+          <div class="catalog-heading-actions">
+            <div id="catalog-results-meta" class="muted"></div>
+            <button id="catalog-continue-button" class="button button-secondary">Continuar lista seleccionada</button>
+          </div>
+        </div>
+
+        <div id="catalog-stats-grid" class="catalog-stats-grid"></div>
+
+        <div class="catalog-filters">
+          <label>
+            <span>Universo</span>
+            <select id="catalog-universe-group">
+              <option value="main">Principal (Earth-616)</option>
+              <option value="ultimate">Ultimate (1610 y 6160)</option>
+              <option value="featured">Otros destacados</option>
+              <option value="other">Otros universos</option>
+              <option value="all">Todos</option>
+            </select>
+          </label>
+          <label>
+            <span>Lista del personaje</span>
+            <select id="catalog-character"></select>
+          </label>
+          <label>
+            <span>Buscar dentro de la lista</span>
+            <input id="catalog-query" type="search" placeholder="Filtrá por título, guionista o edición..." />
+          </label>
+          <label>
+            <span>Colección</span>
+            <select id="catalog-ownership">
+              <option value="all">Todos</option>
+              <option value="missing">Me faltan</option>
+              <option value="owned">Ya tengo</option>
+            </select>
+          </label>
+          <label>
+            <span>Aparición</span>
+            <select id="catalog-appearance">
+              <option value="all">Todas</option>
+              <option value="direct">Aparición</option>
+              <option value="minor">Aparición menor</option>
+            </select>
+          </label>
+          <label>
+            <span>Orden</span>
+            <select id="catalog-sort">
+              <option value="series">Serie e issue</option>
+              <option value="date-asc">Fecha: antigua primero</option>
+              <option value="date-desc">Fecha: reciente primero</option>
+              <option value="title">Título</option>
+            </select>
+          </label>
+          <label>
+            <span>Desde</span>
+            <input id="catalog-from" type="date" />
+          </label>
+          <label>
+            <span>Hasta</span>
+            <input id="catalog-to" type="date" />
+          </label>
+        </div>
+
+        <div id="catalog-filter-notice" class="filter-notice hidden"></div>
+
+        <div id="catalog-list" class="catalog-list"></div>
+        <div id="catalog-empty" class="empty-state hidden">Todavía no hay issues importados o los filtros no tienen resultados.</div>
+        <div class="catalog-pagination">
+          <button id="catalog-first" class="button button-secondary">Primera</button>
+          <button id="catalog-prev" class="button button-secondary">Anterior</button>
+          <span id="catalog-page-meta" class="muted"></span>
+          <button id="catalog-next" class="button button-secondary">Siguiente</button>
+          <button id="catalog-last" class="button button-secondary">Última</button>
+        </div>
+      </section>
+
+      <section id="spanish-editions" class="panel spanish-editions-panel app-tab-panel" data-app-tab-panel="spanish" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Panini, Salvat y otras editoriales</p>
+            <h2>Ediciones en español</h2>
+            <p class="muted">Lista de tomos y colecciones que querés conseguir, relacionados con los issues USA que recopilan.</p>
+          </div>
+          <button id="spanish-add-button" class="button button-primary" type="button">Agregar edición</button>
+        </div>
+
+        <div id="spanish-stats-grid" class="catalog-stats-grid"></div>
+
+        <div class="spanish-filters">
+          <label>
+            <span>Buscar</span>
+            <input id="spanish-query" type="search" placeholder="Título, colección, ISBN o issue USA..." />
+          </label>
+          <label>
+            <span>Estado</span>
+            <select id="spanish-status-filter">
+              <option value="">Todos</option>
+              <option value="wanted">Quiero comprar</option>
+              <option value="owned">Ya tengo</option>
+            </select>
+          </label>
+          <label>
+            <span>Editorial</span>
+            <select id="spanish-publisher-filter"><option value="">Todas</option></select>
+          </label>
+          <label>
+            <span>Personaje</span>
+            <select id="spanish-character-filter"><option value="">Todos</option></select>
+          </label>
+        </div>
+
+        <div id="spanish-editions-list" class="spanish-editions-list"></div>
+        <div id="spanish-empty" class="empty-state">
+          Todavía no agregaste ediciones en español. Este apartado comienza vacío para que armes tu propia colección.
+        </div>
+      </section>
+
+      <div class="app-tab-panel" data-app-tab-panel="tracking" hidden>
+      <section class="panel weekly-heading">
+        <p class="eyebrow">Seguimiento complementario</p>
+        <h2>Revisión semanal de líneas y personajes</h2>
+      </section>
+
+      <section class="stats-grid" id="stats-grid"></section>
+
+      <section class="layout">
+        <div class="main-column">
+          <section class="panel controls">
+            <div class="controls-header">
+              <div>
+                <p class="eyebrow">Buscador</p>
+                <h2>Filtrar base de cómics</h2>
+              </div>
+            </div>
+            <div class="filters">
+              <label>
+                <span>Título</span>
+                <input id="query-input" type="search" placeholder="Amazing Spider-Man, Venom, Miles..." />
+              </label>
+              <label>
+                <span>Personaje</span>
+                <input id="character-input" type="search" placeholder="Peter Parker, Venom, Black Cat..." />
+              </label>
+              <label>
+                <span>Desde</span>
+                <input id="from-input" type="date" />
+              </label>
+              <label>
+                <span>Hasta</span>
+                <input id="to-input" type="date" />
+              </label>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Colección</p>
+                <h2>Cómics guardados por volumen</h2>
+              </div>
+              <div id="results-meta" class="muted"></div>
+            </div>
+            <div id="comics-grid" class="comics-grid"></div>
+            <div id="empty-state" class="empty-state hidden">
+              No hay resultados para esos filtros.
+            </div>
+          </section>
+        </div>
+
+        <aside class="side-column">
+          <section class="panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Pendientes</p>
+                <h2>Revisión manual</h2>
+              </div>
+            </div>
+            <ul id="pending-list" class="pending-list"></ul>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Personajes</p>
+                <h2>Lista seguida</h2>
+              </div>
+            </div>
+            <form id="character-form" class="character-form">
+              <input type="hidden" id="character-id" />
+              <label>
+                <span>Nombre</span>
+                <input id="character-name" type="text" placeholder="Peter Parker" />
+              </label>
+              <label>
+                <span>Alias</span>
+                <textarea id="character-aliases" rows="3" placeholder="Spider-Man, Amazing Spider-Man, Peter Parker"></textarea>
+              </label>
+              <label class="checkbox">
+                <input id="character-active" type="checkbox" checked />
+                <span>Activo</span>
+              </label>
+              <div class="form-actions">
+                <button type="submit" class="button button-primary">Guardar personaje</button>
+                <button type="button" id="character-reset" class="button button-secondary">Limpiar</button>
+              </div>
+            </form>
+            <div id="characters-list" class="characters-list"></div>
+          </section>
+        </aside>
+      </section>
+      </div>
+    </main>
+
+    <dialog id="cover-modal" class="cover-modal">
+      <div class="modal-frame">
+        <button id="modal-close" class="modal-close" aria-label="Cerrar">x</button>
+        <div class="modal-copy">
+          <p id="modal-date" class="eyebrow"></p>
+          <h2 id="modal-title"></h2>
+          <p id="modal-characters" class="muted"></p>
+          <a id="modal-link" class="button button-secondary" target="_blank" rel="noreferrer">Abrir ficha en Marvel Fandom</a>
+        </div>
+        <div class="modal-cover-wrap">
+          <img id="modal-cover" class="modal-cover" alt="Tapa del cómic" />
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="collection-modal" class="collection-modal">
+      <form id="collection-form" class="collection-frame">
+        <button id="collection-close" type="button" class="modal-close" aria-label="Cerrar">x</button>
+        <div>
+          <p class="eyebrow">Mi colección</p>
+          <h2 id="collection-title"></h2>
+          <p id="collection-original-meta" class="muted"></p>
+        </div>
+        <label class="checkbox collection-owned-check">
+          <input id="collection-owned" type="checkbox" />
+          <span>Este issue está cubierto por una edición que tengo</span>
+        </label>
+        <label>
+          <span>Editorial</span>
+          <input id="collection-publisher" list="publisher-options" type="text" placeholder="Panini" />
+          <datalist id="publisher-options">
+            <option value="Panini"></option>
+            <option value="Forum"></option>
+            <option value="Planeta DeAgostini"></option>
+            <option value="Salvat"></option>
+          </datalist>
+        </label>
+        <label>
+          <span>Edición o tomo</span>
+          <input id="collection-edition" type="text" placeholder="Nombre y número del tomo" />
+        </label>
+        <label>
+          <span>Notas</span>
+          <textarea id="collection-notes" rows="3" placeholder="ISBN, estado, variante u otra referencia"></textarea>
+        </label>
+        <div class="form-actions">
+          <button class="button button-primary" type="submit">Guardar</button>
+          <button id="collection-cancel" class="button button-secondary" type="button">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="spanish-edition-modal" class="spanish-edition-modal">
+      <form id="spanish-edition-form" class="spanish-edition-frame">
+        <button id="spanish-edition-close" type="button" class="modal-close" aria-label="Cerrar">x</button>
+        <div>
+          <p class="eyebrow">Biblioteca española</p>
+          <h2 id="spanish-edition-modal-title">Agregar edición</h2>
+          <p class="muted">La edición puede representar un tomo, integral, grapa o colección de cualquier editorial.</p>
+        </div>
+
+        <input id="spanish-edition-id" type="hidden" />
+        <div class="spanish-form-grid">
+          <label class="spanish-field-wide">
+            <span>Título *</span>
+            <input id="spanish-title" type="text" required placeholder="Ej.: Marvel Gold. El Asombroso Spider-Man 1" />
+          </label>
+          <label>
+            <span>Editorial</span>
+            <input id="spanish-publisher" type="text" list="spanish-publisher-options" placeholder="Panini Comics" />
+            <datalist id="spanish-publisher-options">
+              <option value="Panini Comics"></option>
+              <option value="Salvat"></option>
+              <option value="Forum"></option>
+              <option value="Planeta DeAgostini"></option>
+            </datalist>
+          </label>
+          <label>
+            <span>Estado</span>
+            <select id="spanish-purchase-status">
+              <option value="wanted">Quiero comprar</option>
+              <option value="owned">Ya tengo</option>
+            </select>
+          </label>
+          <label>
+            <span>Colección o línea</span>
+            <input id="spanish-collection" type="text" placeholder="Marvel Gold, Must-Have..." />
+          </label>
+          <label>
+            <span>Número o volumen</span>
+            <input id="spanish-volume" type="text" placeholder="Tomo 1" />
+          </label>
+          <label>
+            <span>Formato</span>
+            <input id="spanish-format" type="text" placeholder="Tapa dura, integral, grapa..." />
+          </label>
+          <label>
+            <span>Fecha de publicación</span>
+            <input id="spanish-publication-date" type="date" />
+          </label>
+          <label>
+            <span>ISBN</span>
+            <input id="spanish-isbn" type="text" />
+          </label>
+          <label>
+            <span>Personajes</span>
+            <input id="spanish-characters" type="text" placeholder="Peter Parker, Venom" />
+          </label>
+          <label class="spanish-field-wide">
+            <span>URL de la portada</span>
+            <input id="spanish-cover-url" type="url" placeholder="https://..." />
+          </label>
+          <label class="spanish-field-wide">
+            <span>Enlace de referencia o compra</span>
+            <input id="spanish-reference-url" type="url" placeholder="https://..." />
+          </label>
+          <label class="spanish-field-wide">
+            <span>Notas</span>
+            <textarea id="spanish-notes" rows="3" placeholder="Edición, estado, prioridad u otra referencia"></textarea>
+          </label>
+        </div>
+
+        <section class="spanish-issue-linker">
+          <div>
+            <p class="eyebrow">Contenido USA</p>
+            <h3>Issues incluidos</h3>
+            <p class="muted">Buscá los números originales y agregalos al tomo. Un mismo issue puede estar relacionado con varias ediciones españolas.</p>
+          </div>
+          <label>
+            <span>Buscar issue USA</span>
+            <input id="spanish-issue-search" type="search" placeholder="Amazing Spider-Man #1, Venom #3..." />
+          </label>
+          <div id="spanish-issue-search-results" class="spanish-issue-search-results"></div>
+          <div>
+            <strong>Seleccionados</strong>
+            <div id="spanish-selected-issues" class="spanish-selected-issues"></div>
+          </div>
+        </section>
+
+        <div class="form-actions spanish-form-actions">
+          <button class="button button-primary" type="submit">Guardar edición</button>
+          <button id="spanish-edition-cancel" class="button button-secondary" type="button">Cancelar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="system-modal" class="system-modal">
+      <div class="system-frame">
+        <button id="system-close" type="button" class="modal-close" aria-label="Cerrar">x</button>
+        <div>
+          <p class="eyebrow">Diagnóstico local</p>
+          <h2>Recursos y estado del servidor</h2>
+          <p id="system-sampled-at" class="muted"></p>
+        </div>
+        <div id="system-metrics-grid" class="system-metrics-grid"></div>
+        <section class="system-detail-card">
+          <h3>Telegram</h3>
+          <p id="telegram-runtime-status" class="muted"></p>
+        </section>
+        <section class="system-detail-card">
+          <h3>Operaciones</h3>
+          <p id="server-operations-status" class="muted"></p>
+        </section>
+        <section class="system-detail-card automation-settings">
+          <h3>Actualización automática</h3>
+          <p class="muted">La tarea del sistema solo enciende el servidor. El servidor ejecuta una única actualización por semana; Telegram no agenda corridas.</p>
+          <div class="automation-fields">
+            <label class="checkbox">
+              <input id="automation-enabled" type="checkbox" />
+              <span>Activada</span>
+            </label>
+            <label>
+              <span>Día</span>
+              <select id="automation-day">
+                <option value="MONDAY">Lunes</option>
+                <option value="TUESDAY">Martes</option>
+                <option value="WEDNESDAY">Miércoles</option>
+                <option value="THURSDAY">Jueves</option>
+                <option value="FRIDAY">Viernes</option>
+                <option value="SATURDAY">Sábado</option>
+                <option value="SUNDAY">Domingo</option>
+              </select>
+            </label>
+            <label>
+              <span>Hora</span>
+              <input id="automation-time" type="time" />
+            </label>
+            <button id="automation-save" type="button" class="button button-primary">Guardar horario</button>
+          </div>
+          <p id="automation-status" class="muted"></p>
+        </section>
+        <section class="system-detail-card quarterly-refresh-settings">
+          <div>
+            <h3>Revisión completa de Marvel Fandom</h3>
+            <p class="muted">Cada tres meses se vuelven a consultar las fichas guardadas para actualizar fechas, portadas, guionistas y relaciones que hayan cambiado.</p>
+          </div>
+          <button id="quarterly-refresh-button" type="button" class="button button-secondary">Revisar todos los metadatos ahora</button>
+          <p id="quarterly-refresh-status" class="muted"></p>
+        </section>
+        <p class="muted">Las métricas se actualizan cada 2 segundos mientras esta ventana permanece abierta.</p>
+      </div>
+    </dialog>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

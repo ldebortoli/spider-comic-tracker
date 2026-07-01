@@ -1,0 +1,9 @@
+[Unit]
+Description=Actualización semanal de Spider Tracker
+
+[Timer]
+OnCalendar=__DAY__ *-*-* __TIME__:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

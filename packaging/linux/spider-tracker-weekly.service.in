@@ -1,0 +1,6 @@
+[Unit]
+Description=Iniciar Spider Tracker para su actualización semanal
+
+[Service]
+Type=oneshot
+ExecStart=__PROJECT_ROOT__/scripts/server-control-posix.sh start

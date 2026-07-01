@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Spider Tracker - Servidor
+Comment=Encender, apagar y abrir Spider Tracker
+Exec=__PROJECT_ROOT__/scripts/server-control-linux.sh
+Icon=__PROJECT_ROOT__/assets/spider-tracker-icon.png
+Terminal=false
+Categories=Utility;
+StartupNotify=true

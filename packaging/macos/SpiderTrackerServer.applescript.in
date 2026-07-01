@@ -1,0 +1,24 @@
+property projectRoot : "__PROJECT_ROOT__"
+
+on run
+  repeat
+    set controlScript to quoted form of (projectRoot & "/scripts/server-control-posix.sh")
+    try
+      set serverStatus to do shell script controlScript & " status"
+    on error
+      set serverStatus to "APAGADO"
+    end try
+
+    set selectedAction to choose from list {"Encender", "Apagar", "Abrir aplicación", "Actualizar estado", "Cerrar"} with title "Spider Tracker - Servidor" with prompt "Estado: " & serverStatus default items {"Abrir aplicación"}
+    if selectedAction is false or item 1 of selectedAction is "Cerrar" then exit repeat
+
+    set actionName to item 1 of selectedAction
+    if actionName is "Encender" then
+      display dialog (do shell script controlScript & " start") buttons {"OK"} default button "OK"
+    else if actionName is "Apagar" then
+      display dialog (do shell script controlScript & " stop") buttons {"OK"} default button "OK"
+    else if actionName is "Abrir aplicación" then
+      do shell script controlScript & " open"
+    end if
+  end repeat
+end run
