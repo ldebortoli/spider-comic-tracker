@@ -440,6 +440,14 @@ select:focus {
   margin: 0;
 }
 
+.tracking-panel {
+  padding: 20px;
+}
+
+.tracking-panel > .section-heading:last-child {
+  margin-bottom: 0;
+}
+
 .collection-modal {
   border: 0;
   padding: 0;
@@ -599,6 +607,19 @@ select:focus {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 12px;
+}
+
+.pending-item-empty {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 16px;
+}
+
+.pending-item-empty .pending-copy {
+  gap: 4px;
+}
+
+.pending-item-empty strong {
+  margin-bottom: 0;
 }
 
 .pending-cover,

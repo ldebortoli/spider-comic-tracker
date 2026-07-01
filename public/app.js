@@ -896,7 +896,14 @@ function renderPending() {
   const pending = state.dashboard?.pendingReviews || [];
 
   if (!pending.length) {
-    elements.pendingList.innerHTML = `<li class="pending-item"><strong>Sin pendientes</strong><span class="muted">Todo lo ambiguo ya fue decidido o todavía no se configuró Telegram.</span></li>`;
+    elements.pendingList.innerHTML = `
+      <li class="pending-item pending-item-empty">
+        <div class="pending-copy">
+          <strong>Sin pendientes</strong>
+          <span class="muted">Todo lo ambiguo ya fue decidido o todavía no se configuró Telegram.</span>
+        </div>
+      </li>
+    `;
     return;
   }
 
