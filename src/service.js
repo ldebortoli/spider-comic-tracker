@@ -803,9 +803,23 @@ class ComicTrackerService {
         catalogUpdate
       });
 
-      this.currentPaniniImportPromise = this.performPaniniImport({ full: false, triggerSource: "weekly" });
-      const paniniUpdate = await this.currentPaniniImportPromise;
-      this.currentPaniniImportPromise = null;
+      let paniniUpdate;
+      try {
+        this.currentPaniniImportPromise = this.performPaniniImport({ full: false, triggerSource: "weekly" });
+        paniniUpdate = await this.currentPaniniImportPromise;
+      } catch (paniniError) {
+        paniniUpdate = {
+          status: "failed",
+          processedProducts: 0,
+          matchedProducts: 0,
+          pendingContains: 0,
+          pendingMatch: 0,
+          errors: [{ message: paniniError.message }],
+          errorMessage: paniniError.message
+        };
+      } finally {
+        this.currentPaniniImportPromise = null;
+      }
 
       const completed = {
         running: false,
@@ -827,7 +841,9 @@ class ComicTrackerService {
           matchedProducts: paniniUpdate.matchedProducts || 0,
           pendingContains: paniniUpdate.pendingContains || 0,
           pendingMatch: paniniUpdate.pendingMatch || 0,
-          errors: paniniUpdate.errors?.length || 0
+          errors: paniniUpdate.errors?.length || 0,
+          status: paniniUpdate.status || "completed",
+          errorMessage: paniniUpdate.errorMessage || ""
         }
       };
       this.saveWeeklyUpdateStatus(completed);

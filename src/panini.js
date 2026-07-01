@@ -248,6 +248,11 @@ function requestText(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
       maxHeaderSize: 256 * 1024
     }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirects > 0) {
+        if (/queue-it\.net/i.test(response.headers.location)) {
+          response.resume();
+          reject(new Error("Panini activó su sala de espera; el catálogo se reintentará en la próxima ejecución"));
+          return;
+        }
         response.resume();
         resolve(requestText(new URL(response.headers.location, url).toString(), { timeoutMs, redirects: redirects - 1 }));
         return;

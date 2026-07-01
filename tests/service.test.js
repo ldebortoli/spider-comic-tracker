@@ -73,11 +73,29 @@ async function quarterlyRefreshTest() {
   assert.equal(status.importedComics, 42);
 }
 
+async function paniniFailureDoesNotCancelUsaTest() {
+  const state = new Map();
+  const db = {
+    getState(key, fallback) { return state.has(key) ? state.get(key) : fallback; },
+    setState(key, value) { state.set(key, value); }
+  };
+  const service = new ComicTrackerService({ db, config: {} });
+  service.performSync = async () => ({ processed: 1 });
+  service.performCatalogImport = async () => ({ importedComics: 1, existingSkipped: 0, errors: [] });
+  service.performPaniniImport = async () => { throw new Error("Sala de espera"); };
+  const result = await service.performWeeklyUpdate({ triggerSource: "test", weekYear: 2026, weekNumber: 27 });
+  assert.equal(result.status, "completed");
+  assert.equal(result.paniniUpdate.status, "failed");
+  assert.match(result.paniniUpdate.errorMessage, /Sala de espera/);
+}
+
 (async () => {
   await weeklyUpdateRunsBothStepsTest();
   console.log("ok - la actualizacion semanal ejecuta revision e importacion incremental");
   await quarterlyRefreshTest();
   console.log("ok - la revision trimestral actualiza todos los metadatos");
+  await paniniFailureDoesNotCancelUsaTest();
+  console.log("ok - una caida de Panini no cancela la actualizacion USA");
 })()
   .catch((error) => {
     console.error(error);

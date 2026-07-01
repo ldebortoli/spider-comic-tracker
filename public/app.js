@@ -665,6 +665,8 @@ function renderSpanishEditions() {
   elements.paniniImportButton.textContent = paniniStatus.running ? "Actualizando Panini..." : "Actualizar desde Panini";
   elements.paniniImportMeta.textContent = paniniStatus.running
     ? `Importación en curso: ${paniniStatus.processedProducts || 0} de ${paniniStatus.queuedProducts || 0} productos revisados.`
+    : paniniStatus.stage === "failed"
+      ? `Último intento de Panini interrumpido: ${paniniStatus.errorMessage || "error sin detalle"}. Se reintentará en la próxima ejecución.`
     : stats.paniniLastCheckedAt
       ? `Última revisión de Panini: ${formatDateTime(stats.paniniLastCheckedAt)}. Los productos sin «Contiene» quedan pendientes para la próxima ejecución.`
       : "Panini todavía no fue importado. La primera revisión recorre el catálogo completo y las siguientes procesan novedades y pendientes.";
