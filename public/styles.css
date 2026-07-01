@@ -431,6 +431,31 @@ select:focus {
   margin-top: 18px;
 }
 
+.catalog-pagination--top {
+  margin: 0 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.catalog-character-tags {
+  margin-top: 8px;
+}
+
+.tag-character {
+  color: #d8f3ff;
+  background: rgba(14, 165, 233, 0.14);
+}
+
+.pending-matches {
+  color: #c7d8eb;
+  line-height: 1.4;
+}
+
+.pending-matches strong {
+  display: inline;
+  margin: 0;
+}
+
 .weekly-heading {
   padding: 20px 24px;
   margin-bottom: 16px;
@@ -1028,6 +1053,21 @@ select:focus {
   background: #6ee7b7;
 }
 
+.tag-preferred {
+  color: #052e24;
+  background: #6ee7b7;
+}
+
+.tag-alternative {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.tag-source {
+  color: #e9d5ff;
+  background: rgba(168, 85, 247, 0.16);
+}
+
 .spanish-linked-issues {
   display: grid;
   gap: 7px;
@@ -1050,6 +1090,16 @@ select:focus {
   background: rgba(56, 189, 248, 0.09);
   text-decoration: none;
   font-size: 0.82rem;
+}
+
+.spanish-linked-issues a.is-preferred {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.13);
+}
+
+.spanish-linked-issues a.is-alternative {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.1);
 }
 
 .spanish-edition-actions {

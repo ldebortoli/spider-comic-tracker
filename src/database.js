@@ -3,6 +3,7 @@ const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 const { manualSpiderRoster } = require("./catalog-characters");
 const { deriveVolumeInfo } = require("./marvel");
+const { matchContainsToCatalog, sourceKeyFromUrl } = require("./panini");
 const {
   buildWeekKey,
   normalizeText,
@@ -298,6 +299,28 @@ class ComicDatabase {
         PRIMARY KEY (edition_id, issue_id)
       );
 
+      CREATE TABLE IF NOT EXISTS panini_products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_key TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        product_url TEXT NOT NULL UNIQUE,
+        cover_image_url TEXT NOT NULL DEFAULT '',
+        publication_date TEXT,
+        pages INTEGER,
+        isbn TEXT NOT NULL DEFAULT '',
+        format_label TEXT NOT NULL DEFAULT '',
+        contains_raw TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pending_contains' CHECK(status IN ('pending_contains', 'pending_match', 'matched', 'error')),
+        matched_edition_id INTEGER REFERENCES spanish_editions(id) ON DELETE SET NULL,
+        unresolved_json TEXT NOT NULL DEFAULT '[]',
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT NOT NULL DEFAULT '',
+        first_seen_at TEXT NOT NULL,
+        last_checked_at TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE INDEX IF NOT EXISTS idx_comics_release_date ON comics(release_date DESC);
       CREATE INDEX IF NOT EXISTS idx_comics_decision ON comics(decision);
       CREATE INDEX IF NOT EXISTS idx_volumes_normalized_name ON volumes(normalized_name);
@@ -311,6 +334,7 @@ class ComicDatabase {
       CREATE INDEX IF NOT EXISTS idx_catalog_character_issues_issue ON catalog_character_issues(issue_id);
       CREATE INDEX IF NOT EXISTS idx_spanish_editions_status ON spanish_editions(purchase_status, publisher COLLATE NOCASE, title COLLATE NOCASE);
       CREATE INDEX IF NOT EXISTS idx_spanish_edition_issues_issue ON spanish_edition_issues(issue_id);
+      CREATE INDEX IF NOT EXISTS idx_panini_products_status ON panini_products(status, last_checked_at);
     `);
 
     this.ensureColumn("comics", "volume_id INTEGER REFERENCES volumes(id)");
@@ -320,6 +344,14 @@ class ComicDatabase {
     this.ensureColumn("comics", "originality_reason TEXT");
     this.ensureColumn("spiderman_catalog_issues", "date_source TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("spiderman_catalog_issues", "date_precision TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("catalog_character_issues", "appearance_detail TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("spanish_editions", "source TEXT NOT NULL DEFAULT 'manual'");
+    this.ensureColumn("spanish_editions", "source_key TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("spanish_editions", "pages INTEGER");
+    this.ensureColumn("spanish_editions", "contains_raw TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("spanish_editions", "last_checked_at TEXT NOT NULL DEFAULT ''");
+    this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_spanish_editions_source_key
+      ON spanish_editions(source, source_key) WHERE source_key != '';`);
     this.backfillComicVolumes();
   }
 
@@ -749,12 +781,16 @@ class ComicDatabase {
         DELETE FROM catalog_character_issues WHERE character_id = ?
       `),
       catalogMembershipInsert: this.db.prepare(`
-        INSERT INTO catalog_character_issues (character_id, issue_id, appearance_type, source_synced_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO catalog_character_issues (character_id, issue_id, appearance_type, appearance_detail, source_synced_at)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(character_id, issue_id) DO UPDATE SET
           appearance_type = CASE
             WHEN catalog_character_issues.appearance_type = 'direct' OR excluded.appearance_type = 'direct' THEN 'direct'
             ELSE 'minor'
+          END,
+          appearance_detail = CASE
+            WHEN catalog_character_issues.appearance_type = 'direct' OR excluded.appearance_type = 'direct' THEN ''
+            ELSE excluded.appearance_detail
           END,
           source_synced_at = excluded.source_synced_at
       `),
@@ -886,6 +922,17 @@ class ComicDatabase {
       return null;
     }
 
+    const scopedCharacters = safeJsonParse(row.scoped_characters_json || "[]", [])
+      .filter((item) => item && item.slug)
+      .filter((item, index, all) => all.findIndex((other) => other.slug === item.slug) === index)
+      .map((item) => ({
+        slug: item.slug,
+        displayName: item.displayName,
+        reality: item.reality || "",
+        appearanceType: item.appearanceType || "direct",
+        appearanceDetail: item.appearanceDetail || ""
+      }));
+
     return {
       id: row.id,
       fandomPageId: row.fandom_page_id,
@@ -902,6 +949,8 @@ class ComicDatabase {
       coverImageUrl: row.cover_image_url,
       writers: safeJsonParse(row.writers_json, []),
       appearanceType: row.character_appearance_type || row.appearance_type,
+      appearanceDetail: scopedCharacters.length === 1 ? scopedCharacters[0].appearanceDetail : "",
+      characters: scopedCharacters,
       sourceSyncedAt: row.source_synced_at,
       owned: Boolean(row.owned),
       ownedPublisher: row.owned_publisher,
@@ -960,10 +1009,18 @@ class ComicDatabase {
       coverImageUrl: row.cover_image_url,
       referenceUrl: row.reference_url,
       purchaseStatus: row.purchase_status,
+      source: row.source || "manual",
+      sourceKey: row.source_key || "",
+      pages: row.pages === null || row.pages === undefined ? null : Number(row.pages),
+      containsRaw: row.contains_raw || "",
+      lastCheckedAt: row.last_checked_at || "",
       characters: safeJsonParse(row.characters_json, []),
       notes: row.notes,
       issues,
       issueCount: issues.length,
+      preferredIssueCount: 0,
+      alternativeIssueCount: 0,
+      duplicateCoverageCount: 0,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -1432,9 +1489,11 @@ class ComicDatabase {
       throw new Error(`Personaje de catálogo inexistente: ${slug}`);
     }
 
-    const existing = new Set(this.db.prepare(`
-      SELECT issue_id FROM catalog_character_issues WHERE character_id = ?
-    `).all(characterRow.id).map((row) => Number(row.issue_id)));
+    const existingRows = this.db.prepare(`
+      SELECT issue_id, appearance_type, appearance_detail
+      FROM catalog_character_issues WHERE character_id = ?
+    `).all(characterRow.id);
+    const existing = new Map(existingRows.map((row) => [Number(row.issue_id), row]));
     const resolved = [];
 
     for (const member of members) {
@@ -1443,7 +1502,10 @@ class ComicDatabase {
       if (issue) {
         resolved.push({
           issueId: Number(issue.id),
-          appearanceType: member.appearanceType
+          appearanceType: member.appearanceType,
+          appearanceDetail: member.appearanceType === "minor"
+            ? String(member.appearanceDetail || existing.get(Number(issue.id))?.appearance_detail || "")
+            : ""
         });
       }
     }
@@ -1454,7 +1516,10 @@ class ComicDatabase {
       const previous = unique.get(item.issueId);
       unique.set(item.issueId, {
         issueId: item.issueId,
-        appearanceType: previous?.appearanceType === "direct" || item.appearanceType === "direct" ? "direct" : "minor"
+        appearanceType: previous?.appearanceType === "direct" || item.appearanceType === "direct" ? "direct" : "minor",
+        appearanceDetail: previous?.appearanceType === "direct" || item.appearanceType === "direct"
+          ? ""
+          : (item.appearanceDetail || previous?.appearanceDetail || "")
       });
     }
 
@@ -1470,6 +1535,7 @@ class ComicDatabase {
           characterRow.id,
           item.issueId,
           item.appearanceType,
+          item.appearanceDetail,
           syncAt
         );
       }
@@ -1618,6 +1684,11 @@ class ComicDatabase {
     if (filters.appearance === "direct" || filters.appearance === "minor") {
       conditions.push("ci.appearance_type = ?");
       params.push(filters.appearance);
+    } else if (["flashback", "dream", "vision", "recap"].includes(filters.appearance)) {
+      conditions.push("ci.appearance_type = 'minor' AND ci.appearance_detail = ?");
+      params.push(filters.appearance);
+    } else if (filters.appearance === "other-minor") {
+      conditions.push("ci.appearance_type = 'minor' AND ci.appearance_detail NOT IN ('flashback', 'dream', 'vision', 'recap')");
     }
 
     const where = `WHERE ${conditions.join(" AND ")}`;
@@ -1627,7 +1698,7 @@ class ComicDatabase {
       "date-asc": "i.release_date IS NULL ASC, i.release_date ASC, i.title COLLATE NOCASE ASC",
       title: "i.title COLLATE NOCASE ASC"
     };
-    const orderBy = orders[filters.sort] || orders.series;
+    const orderBy = orders[filters.sort] || orders["date-asc"];
     const total = Number(this.db.prepare(`
       SELECT COUNT(DISTINCT i.id) AS count
       FROM catalog_characters c
@@ -1638,7 +1709,14 @@ class ComicDatabase {
     const rows = this.db.prepare(`
       SELECT i.*,
              CASE WHEN MAX(CASE WHEN ci.appearance_type = 'direct' THEN 1 ELSE 0 END) = 1
-               THEN 'direct' ELSE 'minor' END AS character_appearance_type
+               THEN 'direct' ELSE 'minor' END AS character_appearance_type,
+             json_group_array(json_object(
+               'slug', c.slug,
+               'displayName', c.display_name,
+               'reality', c.reality,
+               'appearanceType', ci.appearance_type,
+               'appearanceDetail', ci.appearance_detail
+             )) AS scoped_characters_json
       FROM catalog_characters c
       JOIN catalog_character_issues ci ON ci.character_id = c.id
       JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
@@ -1676,6 +1754,40 @@ class ComicDatabase {
     `).all();
   }
 
+  listCatalogMembershipsMissingAppearanceDetails() {
+    return this.db.prepare(`
+      SELECT ci.character_id AS characterId, ci.issue_id AS issueId,
+             c.fandom_entity AS fandomEntity,
+             i.fandom_page_id AS fandomPageId, i.page_title AS pageTitle
+      FROM catalog_character_issues ci
+      JOIN catalog_characters c ON c.id = ci.character_id
+      JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
+      WHERE ci.appearance_type = 'minor' AND trim(ci.appearance_detail) = ''
+      ORDER BY i.fandom_page_id, c.id
+    `).all();
+  }
+
+  updateCatalogAppearanceDetails(items) {
+    const update = this.db.prepare(`
+      UPDATE catalog_character_issues
+      SET appearance_detail = ?, source_synced_at = ?
+      WHERE character_id = ? AND issue_id = ? AND appearance_type = 'minor'
+    `);
+    const syncAt = nowIso();
+    let changes = 0;
+    this.db.exec("BEGIN;");
+    try {
+      for (const item of items || []) {
+        changes += Number(update.run(String(item.appearanceDetail || "other"), syncAt, item.characterId, item.issueId).changes || 0);
+      }
+      this.db.exec("COMMIT;");
+      return changes;
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
   listSpanishEditions(filters = {}) {
     const editionRows = this.db.prepare(`
       SELECT *
@@ -1704,6 +1816,27 @@ class ComicDatabase {
     }
 
     const allItems = editionRows.map((row) => this.mapSpanishEdition(row, byEdition.get(Number(row.id)) || []));
+    const issueCoverage = new Map();
+    for (const edition of allItems) {
+      for (const issue of edition.issues) {
+        if (!issueCoverage.has(issue.id)) issueCoverage.set(issue.id, []);
+        issueCoverage.get(issue.id).push(edition);
+      }
+    }
+    for (const editions of issueCoverage.values()) {
+      editions.sort((a, b) => Number(b.pages || 0) - Number(a.pages || 0) || a.id - b.id);
+      const preferredId = editions[0]?.id;
+      for (const edition of editions) {
+        const issue = edition.issues.find((item) => issueCoverage.get(item.id) === editions);
+        if (issue) {
+          issue.spanishEditionCount = editions.length;
+          issue.isPreferredSpanishEdition = edition.id === preferredId;
+        }
+        if (edition.id === preferredId) edition.preferredIssueCount += 1;
+        else edition.alternativeIssueCount += 1;
+        if (editions.length > 1) edition.duplicateCoverageCount += 1;
+      }
+    }
     const query = normalizeText(filters.query || "");
     const publisher = normalizeText(filters.publisher || "");
     const character = normalizeText(filters.character || "");
@@ -1728,6 +1861,14 @@ class ComicDatabase {
     });
     const publishers = uniqueStrings(allItems.map((edition) => edition.publisher).filter(Boolean))
       .sort((a, b) => a.localeCompare(b, "es"));
+    const paniniStats = this.db.prepare(`
+      SELECT
+        SUM(CASE WHEN status = 'pending_contains' THEN 1 ELSE 0 END) AS pending_contains,
+        SUM(CASE WHEN status = 'pending_match' THEN 1 ELSE 0 END) AS pending_match,
+        SUM(CASE WHEN status = 'matched' THEN 1 ELSE 0 END) AS matched,
+        MAX(last_checked_at) AS last_checked_at
+      FROM panini_products
+    `).get() || {};
     const characterMap = new Map();
 
     for (const name of allItems.flatMap((edition) => edition.characters)) {
@@ -1742,7 +1883,11 @@ class ComicDatabase {
         wantedCount: allItems.filter((edition) => edition.purchaseStatus === "wanted").length,
         ownedCount: allItems.filter((edition) => edition.purchaseStatus === "owned").length,
         linkedIssueCount: allItems.reduce((total, edition) => total + edition.issueCount, 0),
-        publisherCount: publishers.length
+        publisherCount: publishers.length,
+        paniniPendingContains: Number(paniniStats.pending_contains || 0),
+        paniniPendingMatch: Number(paniniStats.pending_match || 0),
+        paniniMatchedCount: Number(paniniStats.matched || 0),
+        paniniLastCheckedAt: paniniStats.last_checked_at || ""
       },
       filters: {
         publishers,
@@ -1834,6 +1979,156 @@ class ComicDatabase {
 
   deleteSpanishEdition(id) {
     return Boolean(this.db.prepare("DELETE FROM spanish_editions WHERE id = ?").run(Number(id)).changes);
+  }
+
+  listKnownPaniniProductUrls() {
+    return this.db.prepare("SELECT product_url FROM panini_products").all().map((row) => row.product_url);
+  }
+
+  listPendingPaniniProducts() {
+    return this.db.prepare(`
+      SELECT source_key AS sourceKey, title, product_url AS productUrl, status, retry_count AS retryCount
+      FROM panini_products
+      WHERE status IN ('pending_contains', 'pending_match', 'error')
+      ORDER BY last_checked_at ASC
+    `).all();
+  }
+
+  listCatalogIssuesForPaniniMatching() {
+    return this.db.prepare(`
+      SELECT id, series_name, volume_number, issue_number, issue_label, release_date, title
+      FROM spiderman_catalog_issues
+      WHERE issue_number IS NOT NULL
+      ORDER BY series_name COLLATE NOCASE, volume_number, issue_number
+    `).all();
+  }
+
+  processPaniniProduct(product = {}) {
+    const now = nowIso();
+    const productUrl = String(product.productUrl || "").trim();
+    const sourceKey = String(product.sourceKey || sourceKeyFromUrl(productUrl)).trim();
+    if (!sourceKey || !productUrl) throw new Error("El producto de Panini no tiene URL o identificador.");
+    const existingProduct = this.db.prepare("SELECT * FROM panini_products WHERE source_key = ?").get(sourceKey);
+
+    if (product.errorMessage) {
+      this.db.prepare(`
+        INSERT INTO panini_products (
+          source_key, title, product_url, status, retry_count, error_message,
+          first_seen_at, last_checked_at, created_at, updated_at
+        ) VALUES (?, ?, ?, 'error', 1, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_key) DO UPDATE SET
+          title = excluded.title,
+          product_url = excluded.product_url,
+          status = 'error',
+          retry_count = panini_products.retry_count + 1,
+          error_message = excluded.error_message,
+          last_checked_at = excluded.last_checked_at,
+          updated_at = excluded.updated_at
+      `).run(sourceKey, String(product.title || existingProduct?.title || sourceKey), productUrl,
+        String(product.errorMessage), existingProduct?.first_seen_at || now, now, now, now);
+      return { status: "error", sourceKey };
+    }
+
+    const containsRaw = String(product.containsRaw || "").trim();
+    const match = containsRaw
+      ? matchContainsToCatalog(containsRaw, this.listCatalogIssuesForPaniniMatching(), product.publicationDate || "")
+      : { issueIds: [], issues: [], unresolved: [], recognizedSeries: [] };
+    const status = !containsRaw ? "pending_contains" : (match.issueIds.length ? "matched" : "pending_match");
+    let editionId = existingProduct?.matched_edition_id ? Number(existingProduct.matched_edition_id) : null;
+    this.db.exec("BEGIN;");
+
+    try {
+      if (status === "matched") {
+        const placeholders = match.issueIds.map(() => "?").join(", ");
+        const characterRows = this.db.prepare(`
+          SELECT DISTINCT c.display_name
+          FROM catalog_character_issues ci
+          JOIN catalog_characters c ON c.id = ci.character_id
+          WHERE ci.issue_id IN (${placeholders})
+          ORDER BY c.display_name COLLATE NOCASE
+        `).all(...match.issueIds);
+        const charactersJson = JSON.stringify(characterRows.map((row) => row.display_name));
+        const existingEdition = this.db.prepare(`
+          SELECT id, purchase_status, notes FROM spanish_editions
+          WHERE source = 'panini' AND source_key = ?
+        `).get(sourceKey);
+
+        if (existingEdition) {
+          editionId = Number(existingEdition.id);
+          this.db.prepare(`
+            UPDATE spanish_editions
+            SET title = ?, publisher = 'Panini Comics', publication_date = ?, isbn = ?, cover_image_url = ?,
+                reference_url = ?, format_label = ?, characters_json = ?, source = 'panini', source_key = ?,
+                pages = ?, contains_raw = ?, last_checked_at = ?, updated_at = ?
+            WHERE id = ?
+          `).run(
+            product.title || sourceKey, product.publicationDate || null, product.isbn || "", product.coverImageUrl || "",
+            productUrl, product.formatLabel || "", charactersJson, sourceKey, product.pages || null,
+            containsRaw, now, now, editionId
+          );
+        } else {
+          const result = this.db.prepare(`
+            INSERT INTO spanish_editions (
+              title, publisher, collection_name, volume_label, format_label, publication_date,
+              isbn, cover_image_url, reference_url, purchase_status, characters_json, notes,
+              source, source_key, pages, contains_raw, last_checked_at, created_at, updated_at
+            ) VALUES (?, 'Panini Comics', '', '', ?, ?, ?, ?, ?, 'wanted', ?, '', 'panini', ?, ?, ?, ?, ?, ?)
+          `).run(
+            product.title || sourceKey, product.formatLabel || "", product.publicationDate || null,
+            product.isbn || "", product.coverImageUrl || "", productUrl, charactersJson, sourceKey,
+            product.pages || null, containsRaw, now, now, now
+          );
+          editionId = Number(result.lastInsertRowid);
+        }
+
+        this.db.prepare("DELETE FROM spanish_edition_issues WHERE edition_id = ?").run(editionId);
+        const insertLink = this.db.prepare(`
+          INSERT INTO spanish_edition_issues (edition_id, issue_id, position, created_at)
+          VALUES (?, ?, ?, ?)
+        `);
+        match.issueIds.forEach((issueId, position) => insertLink.run(editionId, issueId, position, now));
+      }
+
+      this.db.prepare(`
+        INSERT INTO panini_products (
+          source_key, title, product_url, cover_image_url, publication_date, pages, isbn, format_label,
+          contains_raw, status, matched_edition_id, unresolved_json, retry_count, error_message,
+          first_seen_at, last_checked_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, '', ?, ?, ?, ?)
+        ON CONFLICT(source_key) DO UPDATE SET
+          title = excluded.title,
+          product_url = excluded.product_url,
+          cover_image_url = excluded.cover_image_url,
+          publication_date = excluded.publication_date,
+          pages = excluded.pages,
+          isbn = excluded.isbn,
+          format_label = excluded.format_label,
+          contains_raw = excluded.contains_raw,
+          status = excluded.status,
+          matched_edition_id = COALESCE(excluded.matched_edition_id, panini_products.matched_edition_id),
+          unresolved_json = excluded.unresolved_json,
+          retry_count = panini_products.retry_count + 1,
+          error_message = '',
+          last_checked_at = excluded.last_checked_at,
+          updated_at = excluded.updated_at
+      `).run(
+        sourceKey, product.title || sourceKey, productUrl, product.coverImageUrl || "", product.publicationDate || null,
+        product.pages || null, product.isbn || "", product.formatLabel || "", containsRaw, status, editionId,
+        JSON.stringify(match.unresolved || []), existingProduct?.first_seen_at || now, now, now, now
+      );
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+
+    return {
+      status,
+      sourceKey,
+      editionId,
+      matchedIssueCount: match.issueIds.length,
+      unresolved: match.unresolved
+    };
   }
 
   searchCatalogIssues(query, limit = 30) {

@@ -11,12 +11,13 @@ Aplicacion local para catalogar las apariciones historicas de Spider-Man/Peter P
 - Importa desde Marvel Database/Fandom los miembros de `Appearances` y `Minor Appearances` de cada personaje.
 - Un comic compartido aparece en cada lista correspondiente, pero se almacena una sola vez.
 - Conserva solo paginas categorizadas como comics; no mezcla peliculas, juegos u otros medios.
-- Guarda titulo, serie, volumen, issue, fecha de salida, tapa, guionistas y tipo de aparicion.
+- Guarda título, serie, volumen, issue, fecha de salida, tapa, guionistas, tipo de aparición y subtipo de aparición menor (sueño, flashback, visión, recapitulación u otro).
 - Permite marcar cada issue como cubierto por una edicion propia y anotar editorial, tomo y notas (por ejemplo, una edicion de Panini).
 - Mantiene esos datos personales aunque se vuelva a importar el catalogo.
 - Guarda por personaje la fecha del comic mas reciente, la ultima sincronizacion y cuantos comics nuevos se agregaron.
 - La accion **Continuar desde...** revisa solamente una lista y no vuelve a descargar ni duplicar issues ya conocidos.
-- Incluye buscador, filtros de coleccion/aparicion/fecha, orden y paginacion.
+- Incluye buscador, filtros de colección/aparición/fecha, orden cronológico predeterminado, tamaño de página configurable y paginación arriba y abajo.
+- Muestra en cada issue los personajes que aparecen dentro de la lista o categoría seleccionada.
 - Exporta todo el catalogo y el estado de la coleccion a CSV desde la interfaz.
 - Revisa una vez por semana la categoria de Marvel Fandom `Category:Week_##,_YYYY`.
 - Extrae titulo, URL de la ficha, fecha de publicacion, tapa y personajes detectados.
@@ -93,7 +94,7 @@ El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.
 
-La actualizacion automatica semanal ejecuta dos pasos: revisa la semana actual y luego busca nuevos comics en todas las listas sin volver a insertar los ya conocidos. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
+La actualización automática semanal ejecuta tres pasos secuenciales: revisa la semana USA actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de Panini. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
 
 El horario tambien se puede activar, desactivar o modificar desde **Recursos y servidor**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
@@ -123,7 +124,19 @@ npm run repair:dates
 
 ## Ediciones en español
 
-El apartado de Panini, Salvat y otras editoriales comienza vacío. Permite registrar tomos, integrales, grapas o colecciones con estado **Quiero comprar** o **Ya tengo**, editorial, línea, personajes, ISBN, portada, referencia y notas. Cada edición se puede relacionar con varios issues USA; un mismo issue puede pertenecer a varias ediciones españolas.
+El apartado permite registrar manualmente tomos, integrales, grapas o colecciones con estado **Quiero comprar** o **Ya tengo**, editorial, línea, personajes, ISBN, portada, referencia y notas.
+
+También importa el catálogo Marvel de Panini España. Cada producto se identifica por su URL para no duplicarlo. El servidor abre su ficha, lee **Contiene** y **Páginas**, relaciona los números declarados con el catálogo USA y solo publica en la lista las ediciones que tienen al menos una coincidencia. Los productos que todavía no publican **Contiene** quedan pendientes para la siguiente revisión semanal.
+
+Un issue USA puede pertenecer a varias ediciones españolas. En ese caso se conservan todas y se marca como prioritaria la edición con más páginas; las demás se muestran como alternativas. La primera importación recorre el catálogo completo y es reanudable; las siguientes revisan novedades y pendientes.
+
+La lista editable de **Seguimiento complementario** es la fuente de las sugerencias semanales y sus alias. No es idéntica al catálogo histórico de personajes: este último es mucho más amplio y se obtiene de las categorías de Marvel Fandom.
+
+Para completar subtipos en datos importados antes de esta función:
+
+```bash
+npm run repair:appearances
+```
 
 ## Revisión trimestral
 

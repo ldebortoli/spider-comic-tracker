@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 
 const {
   extractWriters,
+  extractAppearanceDetails,
   extractDateMetadata,
   mergeAppearanceMembers,
   parseCatalogPage,
@@ -126,6 +127,17 @@ function extractWritersTest() {
   `);
 
   assert.deepEqual(result, ["Zeb Wells", "Joe Kelly"]);
+}
+
+function appearanceDetailsTest() {
+  const details = extractAppearanceDetails(`
+    * {{apn|[[Peter Parker (Earth-616)|Spider-Man]]|Example}} {{Flashback}}
+    * {{Dream|[[Mary Jane Watson (Earth-616)|Mary Jane]]}}
+    * {{Vision|[[Venom (Symbiote) (Earth-616)|Venom]]}}
+  `);
+  assert.equal(details["Peter Parker (Earth-616)"], "flashback");
+  assert.equal(details["Mary Jane Watson (Earth-616)"], "dream");
+  assert.equal(details["Venom (Symbiote) (Earth-616)"], "vision");
 }
 
 function mergeAppearanceMembersTest() {
@@ -285,6 +297,41 @@ function spanishEditionsTest() {
   db.close();
 }
 
+function paniniPreferenceTest() {
+  const db = new ComicDatabase(":memory:");
+  db.upsertCatalogIssues([{
+    fandomPageId: 9191,
+    pageTitle: "Unique Spider Test Vol 1 1",
+    title: "Unique Spider Test (Vol. 1) #1",
+    fandomUrl: "https://example.test/unique-spider-test-1",
+    seriesName: "Unique Spider Test",
+    volumeNumber: 1,
+    issueLabel: "1",
+    issueNumber: 1,
+    releaseDate: "2020-01-01",
+    coverImageUrl: "",
+    writers: [],
+    appearanceType: "direct",
+    sourceDefaultSort: ""
+  }]);
+  db.replaceCatalogCharacterIssues("peter-parker-earth-616", [{ pageId: 9191, appearanceType: "direct" }]);
+  const product = (key, pages) => ({
+    sourceKey: key,
+    title: `Tomo ${key}`,
+    productUrl: `https://panini.test/${key}.html`,
+    pages,
+    containsRaw: "Unique Spider Test 1"
+  });
+  db.processPaniniProduct(product("small", 120));
+  db.processPaniniProduct(product("large", 480));
+  db.processPaniniProduct(product("large", 480));
+  const editions = db.listSpanishEditions().items;
+  assert.equal(editions.length, 2);
+  assert.equal(editions.find((item) => item.sourceKey === "large").preferredIssueCount, 1);
+  assert.equal(editions.find((item) => item.sourceKey === "small").alternativeIssueCount, 1);
+  db.close();
+}
+
 function webReviewDecisionTest() {
   const db = new ComicDatabase(":memory:");
   const comic = db.upsertComic({
@@ -364,6 +411,7 @@ const tests = [
   ["parsea una ficha del catalogo", parseCatalogPageTest],
   ["extrae la tapa declarada en Image1", extractCoverFileNameTest],
   ["extrae y limpia guionistas", extractWritersTest],
+  ["clasifica el subtipo de las apariciones menores", appearanceDetailsTest],
   ["usa Cover Date cuando falta Release Date", coverDateFallbackTest],
   ["incluye los personajes relacionados pedidos", relatedCharactersSeedTest],
   ["deduplica apariciones y prioriza la directa", mergeAppearanceMembersTest],
@@ -371,6 +419,7 @@ const tests = [
   ["una reimportacion conserva la coleccion", collectionStateSurvivesImportTest],
   ["un comic compartido aparece en cada lista sin duplicarse", sharedComicAppearsInEachCharacterTest],
   ["las ediciones en español relacionan varios issues sin datos precargados", spanishEditionsTest],
+  ["Panini no duplica productos y prioriza el tomo con más páginas", paniniPreferenceTest],
   ["una revision web se resuelve una sola vez", webReviewDecisionTest],
   ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest]
 ];

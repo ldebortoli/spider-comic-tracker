@@ -12,7 +12,8 @@
     "import:catalog": "node scripts/import-spiderman-catalog.js",
     "repair:covers": "node scripts/repair-catalog-covers.js",
     "repair:dates": "node scripts/repair-catalog-dates.js",
-    "test": "node tests/marvel.test.js && node tests/catalog.test.js && node tests/service.test.js && node tests/runtime.test.js"
+    "repair:appearances": "node scripts/repair-appearance-details.js",
+    "test": "node tests/marvel.test.js && node tests/panini.test.js && node tests/catalog.test.js && node tests/service.test.js && node tests/runtime.test.js"
   },
   "license": "MIT"
 }

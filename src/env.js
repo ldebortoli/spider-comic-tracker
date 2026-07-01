@@ -64,6 +64,10 @@ function getConfig() {
     dbPath: path.resolve(process.cwd(), process.env.DB_PATH || "data/comics.sqlite"),
     publicDir: path.resolve(process.cwd(), "public"),
     marvelBaseUrl: process.env.MARVEL_BASE_URL || "https://marvel.fandom.com",
+    panini: {
+      listingUrl: process.env.PANINI_LISTING_URL || "https://www.panini.es/shp_esp_es/comics/marvel.html?skip_default_filters=true",
+      concurrency: Math.max(1, Math.min(8, toNumber(process.env.PANINI_CONCURRENCY, 4)))
+    },
     schedule: {
       enabled: toBoolean(process.env.SCHEDULE_ENABLED, true),
       day: (process.env.SCHEDULE_DAY || "WEDNESDAY").toUpperCase(),

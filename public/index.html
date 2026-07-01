@@ -85,15 +85,29 @@
               <option value="all">Todas</option>
               <option value="direct">Aparición</option>
               <option value="minor">Aparición menor</option>
+              <option value="flashback">Aparición menor: flashback</option>
+              <option value="dream">Aparición menor: sueño</option>
+              <option value="vision">Aparición menor: visión</option>
+              <option value="recap">Aparición menor: recapitulación</option>
+              <option value="other-minor">Otras apariciones menores</option>
             </select>
           </label>
           <label>
             <span>Orden</span>
             <select id="catalog-sort">
-              <option value="series">Serie e issue</option>
               <option value="date-asc">Fecha: antigua primero</option>
               <option value="date-desc">Fecha: reciente primero</option>
+              <option value="series">Serie e issue</option>
               <option value="title">Título</option>
+            </select>
+          </label>
+          <label>
+            <span>Resultados por página</span>
+            <select id="catalog-page-size">
+              <option value="20">20</option>
+              <option value="60" selected>60</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
             </select>
           </label>
           <label>
@@ -108,14 +122,21 @@
 
         <div id="catalog-filter-notice" class="filter-notice hidden"></div>
 
+        <div class="catalog-pagination catalog-pagination--top">
+          <button class="button button-secondary" data-catalog-page-action="first">Primera</button>
+          <button class="button button-secondary" data-catalog-page-action="prev">Anterior</button>
+          <span class="muted" data-catalog-page-meta></span>
+          <button class="button button-secondary" data-catalog-page-action="next">Siguiente</button>
+          <button class="button button-secondary" data-catalog-page-action="last">Última</button>
+        </div>
         <div id="catalog-list" class="catalog-list"></div>
         <div id="catalog-empty" class="empty-state hidden">Todavía no hay issues importados o los filtros no tienen resultados.</div>
         <div class="catalog-pagination">
-          <button id="catalog-first" class="button button-secondary">Primera</button>
-          <button id="catalog-prev" class="button button-secondary">Anterior</button>
-          <span id="catalog-page-meta" class="muted"></span>
-          <button id="catalog-next" class="button button-secondary">Siguiente</button>
-          <button id="catalog-last" class="button button-secondary">Última</button>
+          <button id="catalog-first" class="button button-secondary" data-catalog-page-action="first">Primera</button>
+          <button id="catalog-prev" class="button button-secondary" data-catalog-page-action="prev">Anterior</button>
+          <span id="catalog-page-meta" class="muted" data-catalog-page-meta></span>
+          <button id="catalog-next" class="button button-secondary" data-catalog-page-action="next">Siguiente</button>
+          <button id="catalog-last" class="button button-secondary" data-catalog-page-action="last">Última</button>
         </div>
       </section>
 
@@ -126,8 +147,13 @@
             <h2>Ediciones en español</h2>
             <p class="muted">Lista de tomos y colecciones que querés conseguir, relacionados con los issues USA que recopilan.</p>
           </div>
-          <button id="spanish-add-button" class="button button-primary" type="button">Agregar edición</button>
+          <div class="catalog-heading-actions">
+            <button id="panini-import-button" class="button button-secondary" type="button">Actualizar desde Panini</button>
+            <button id="spanish-add-button" class="button button-primary" type="button">Agregar edición</button>
+          </div>
         </div>
+
+        <p id="panini-import-meta" class="muted"></p>
 
         <div id="spanish-stats-grid" class="catalog-stats-grid"></div>
 

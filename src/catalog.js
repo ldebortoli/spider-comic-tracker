@@ -182,6 +182,35 @@ function mergeAppearanceMembers(directMembers, minorMembers) {
   return [...merged.values()];
 }
 
+const APPEARANCE_DETAIL_TEMPLATES = [
+  ["flashback", /\{\{\s*flashback\b/i],
+  ["dream", /\{\{\s*dream\b/i],
+  ["vision", /\{\{\s*vision\b/i],
+  ["recap", /\{\{\s*recap\b/i],
+  ["photo", /\{\{\s*(?:photo|photograph)\b/i],
+  ["on-screen", /\{\{\s*onscreenonly\b/i],
+  ["illusion", /\{\{\s*illusion\b/i],
+  ["statue", /\{\{\s*statue\b/i],
+  ["portrait", /\{\{\s*portrait\b/i],
+  ["recording", /\{\{\s*(?:recording|video)\b/i]
+];
+
+function extractAppearanceDetails(wikitext) {
+  const details = {};
+
+  for (const line of String(wikitext || "").split(/\r?\n/)) {
+    const entities = [...line.matchAll(/\[\[([^\]|#]+\(Earth-[^)]+\))(?=[\]|])/g)].map((match) => match[1].trim());
+    if (!entities.length) continue;
+    const detail = APPEARANCE_DETAIL_TEMPLATES.find(([, pattern]) => pattern.test(line))?.[0] || "";
+    if (!detail) continue;
+    for (const entity of entities) {
+      if (!details[entity]) details[entity] = detail;
+    }
+  }
+
+  return details;
+}
+
 function parseInfoboxes(rawInfoboxes) {
   if (!rawInfoboxes) {
     return [];
@@ -465,6 +494,7 @@ function parseCatalogPage(page, member, baseUrl) {
     coverFileName: extractCoverFileName(wikitext),
     writers: extractWriters(wikitext),
     appearanceType: member.appearanceType,
+    appearanceDetails: extractAppearanceDetails(wikitext),
     sourceDefaultSort: page?.pageprops?.defaultsort || ""
   };
 }
@@ -603,6 +633,7 @@ async function importCharacterCatalogs({
 }) {
   const startedAt = new Date().toISOString();
   const discoveries = new Map();
+  const appearanceDetailsByPage = new Map();
   const errors = [];
   let nextCharacter = 0;
   let discoveredCharacters = 0;
@@ -685,6 +716,9 @@ async function importCharacterCatalogs({
 
       try {
         const result = await fetchCatalogBatch({ baseUrl, members: batches[batchIndex] });
+        for (const comic of result.comics) {
+          appearanceDetailsByPage.set(comic.fandomPageId, comic.appearanceDetails || {});
+        }
         await onItems?.(result.comics);
         importProgress.processedPages += result.processed;
         importProgress.importedComics += result.comics.length;
@@ -709,7 +743,13 @@ async function importCharacterCatalogs({
 
   for (const { character, members } of discoveries.values()) {
     try {
-      const result = await onCharacterMembers?.(character, members);
+      const enrichedMembers = members.map((member) => ({
+        ...member,
+        appearanceDetail: member.appearanceType === "minor"
+          ? (appearanceDetailsByPage.get(member.pageId)?.[character.fandomEntity] || "")
+          : ""
+      }));
+      const result = await onCharacterMembers?.(character, enrichedMembers);
       characterResults.push({
         slug: character.slug,
         displayName: character.displayName,
@@ -735,6 +775,7 @@ module.exports = {
   cleanWikiCreator,
   discoverCatalogRoster,
   extractDateMetadata,
+  extractAppearanceDetails,
   extractReleaseDate,
   extractCoverFileName,
   extractWriters,

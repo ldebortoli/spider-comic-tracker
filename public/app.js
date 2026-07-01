@@ -21,7 +21,7 @@ const state = {
       appearance: "all",
       from: "",
       to: "",
-      sort: "series"
+      sort: "date-asc"
     }
   },
   spanishEditions: {
@@ -102,11 +102,8 @@ const elements = {
   catalogResultsMeta: document.querySelector("#catalog-results-meta"),
   catalogList: document.querySelector("#catalog-list"),
   catalogEmpty: document.querySelector("#catalog-empty"),
-  catalogPrev: document.querySelector("#catalog-prev"),
-  catalogNext: document.querySelector("#catalog-next"),
-  catalogFirst: document.querySelector("#catalog-first"),
-  catalogLast: document.querySelector("#catalog-last"),
-  catalogPageMeta: document.querySelector("#catalog-page-meta"),
+  catalogPageButtons: document.querySelectorAll("[data-catalog-page-action]"),
+  catalogPageMetas: document.querySelectorAll("[data-catalog-page-meta]"),
   catalogUniverseGroup: document.querySelector("#catalog-universe-group"),
   catalogQuery: document.querySelector("#catalog-query"),
   catalogFilterNotice: document.querySelector("#catalog-filter-notice"),
@@ -114,6 +111,7 @@ const elements = {
   catalogOwnership: document.querySelector("#catalog-ownership"),
   catalogAppearance: document.querySelector("#catalog-appearance"),
   catalogSort: document.querySelector("#catalog-sort"),
+  catalogPageSize: document.querySelector("#catalog-page-size"),
   catalogFrom: document.querySelector("#catalog-from"),
   catalogTo: document.querySelector("#catalog-to"),
   collectionModal: document.querySelector("#collection-modal"),
@@ -127,6 +125,8 @@ const elements = {
   collectionEdition: document.querySelector("#collection-edition"),
   collectionNotes: document.querySelector("#collection-notes"),
   spanishAddButton: document.querySelector("#spanish-add-button"),
+  paniniImportButton: document.querySelector("#panini-import-button"),
+  paniniImportMeta: document.querySelector("#panini-import-meta"),
   spanishStatsGrid: document.querySelector("#spanish-stats-grid"),
   spanishQuery: document.querySelector("#spanish-query"),
   spanishStatusFilter: document.querySelector("#spanish-status-filter"),
@@ -311,7 +311,11 @@ function renderStats() {
 
   const taskLabel = schedule.windowsTaskInstalled ? "Tarea de Windows activa" : "Solo mientras el servidor esté abierto";
   if (weeklyUpdate.running) {
-    const stage = weeklyUpdate.stage === "catalog_update" ? "actualizando catálogos" : "revisando la semana";
+    const stage = ({
+      weekly_review: "revisando novedades USA",
+      catalog_update: "actualizando listas históricas USA",
+      panini_update: "revisando Panini"
+    })[weeklyUpdate.stage] || "revisando la semana";
     elements.weeklyUpdateMeta.textContent = `Actualización semanal en curso: ${stage}. ${taskLabel}.`;
   } else if (weeklyUpdate.status === "failed") {
     elements.weeklyUpdateMeta.textContent = `Última actualización automática fallida: ${formatDateTime(weeklyUpdate.finishedAt)}. ${weeklyUpdate.errorMessage || "Error sin detalle"}`;
@@ -482,6 +486,21 @@ function renderCatalogStats() {
     : "Importar lista seleccionada";
 }
 
+function appearanceDetailLabel(value) {
+  return ({
+    flashback: "Flashback",
+    dream: "Sueño",
+    vision: "Visión",
+    recap: "Recapitulación",
+    photo: "Fotografía",
+    "on-screen": "En pantalla",
+    illusion: "Ilusión",
+    statue: "Estatua",
+    portrait: "Retrato",
+    recording: "Grabación"
+  })[value] || (value ? "Otra aparición menor" : "");
+}
+
 function renderCatalog() {
   const { items, total, limit, offset } = state.catalog;
   const first = total ? offset + 1 : 0;
@@ -490,11 +509,12 @@ function renderCatalog() {
   const pages = Math.max(1, Math.ceil(total / limit));
 
   elements.catalogResultsMeta.textContent = `${total} resultado(s)`;
-  elements.catalogPageMeta.textContent = `${first}-${last} de ${total} / página ${page} de ${pages}`;
-  elements.catalogPrev.disabled = offset <= 0;
-  elements.catalogNext.disabled = offset + limit >= total;
-  elements.catalogFirst.disabled = offset <= 0;
-  elements.catalogLast.disabled = offset + limit >= total;
+  const pageMeta = `${first}-${last} de ${total} / página ${page} de ${pages}`;
+  for (const element of elements.catalogPageMetas) element.textContent = pageMeta;
+  for (const button of elements.catalogPageButtons) {
+    const action = button.dataset.catalogPageAction;
+    button.disabled = action === "first" || action === "prev" ? offset <= 0 : offset + limit >= total;
+  }
 
   const activeQuery = state.catalog.filters.query;
   if (activeQuery) {
@@ -524,6 +544,14 @@ function renderCatalog() {
   elements.catalogList.innerHTML = items.map((issue) => {
     const edition = [issue.ownedPublisher, issue.ownedEdition].filter(Boolean).join(" - ");
     const writers = issue.writers?.length ? issue.writers.join(", ") : "Guionista sin datos";
+    const detail = appearanceDetailLabel(issue.appearanceDetail);
+    const appearance = issue.appearanceType === "minor"
+      ? `Aparición menor${detail ? ` · ${detail}` : ""}`
+      : "Aparición";
+    const characterTags = (issue.characters || []).map((character) => {
+      const characterDetail = character.appearanceType === "minor" ? appearanceDetailLabel(character.appearanceDetail) : "";
+      return `<span class="tag tag-character">${escapeHtml(character.displayName)}${characterDetail ? ` · ${escapeHtml(characterDetail)}` : ""}</span>`;
+    }).join("");
     const image = issue.coverImageUrl
       ? `<img src="${escapeHtml(issue.coverImageUrl)}" alt="" loading="lazy" />`
       : `<div class="catalog-cover-placeholder">Sin tapa</div>`;
@@ -534,9 +562,10 @@ function renderCatalog() {
         <div class="catalog-copy">
           <div class="catalog-title-line">
             <a href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(issue.title)}</a>
-            <span class="tag">${issue.appearanceType === "minor" ? "Aparición menor" : "Aparición"}</span>
+            <span class="tag">${escapeHtml(appearance)}</span>
           </div>
           <p>${escapeHtml(formatDate(issue.releaseDate, issue.datePrecision, issue.dateSource))} · ${escapeHtml(writers)}</p>
+          ${characterTags ? `<div class="tags catalog-character-tags">${characterTags}</div>` : ""}
           ${edition ? `<p class="owned-edition">En mi colección: ${escapeHtml(edition)}</p>` : ""}
           ${issue.collectionNotes ? `<p class="muted">${escapeHtml(issue.collectionNotes)}</p>` : ""}
         </div>
@@ -623,12 +652,22 @@ function renderSpanishEditions() {
     ["Quiero comprar", stats.wantedCount || 0],
     ["Ya tengo", stats.ownedCount || 0],
     ["Issues USA relacionados", stats.linkedIssueCount || 0],
-    ["Editoriales", stats.publisherCount || 0]
+    ["Editoriales", stats.publisherCount || 0],
+    ["Panini sin «Contiene»", stats.paniniPendingContains || 0],
+    ["Panini sin match USA", stats.paniniPendingMatch || 0]
   ];
   elements.spanishStatsGrid.innerHTML = cards.map(([label, value]) => `
     <article class="catalog-stat"><span class="muted">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>
   `).join("");
   renderSpanishFilterOptions();
+  const paniniStatus = state.dashboard?.paniniImport || {};
+  elements.paniniImportButton.disabled = Boolean(paniniStatus.running);
+  elements.paniniImportButton.textContent = paniniStatus.running ? "Actualizando Panini..." : "Actualizar desde Panini";
+  elements.paniniImportMeta.textContent = paniniStatus.running
+    ? `Importación en curso: ${paniniStatus.processedProducts || 0} de ${paniniStatus.queuedProducts || 0} productos revisados.`
+    : stats.paniniLastCheckedAt
+      ? `Última revisión de Panini: ${formatDateTime(stats.paniniLastCheckedAt)}. Los productos sin «Contiene» quedan pendientes para la próxima ejecución.`
+      : "Panini todavía no fue importado. La primera revisión recorre el catálogo completo y las siguientes procesan novedades y pendientes.";
 
   const hasFilters = Object.values(state.spanishEditions.filters).some(Boolean);
   elements.spanishEmpty.classList.toggle("hidden", items.length > 0);
@@ -642,7 +681,7 @@ function renderSpanishEditions() {
     const cover = edition.coverImageUrl
       ? `<img src="${escapeHtml(edition.coverImageUrl)}" alt="Portada de ${escapeHtml(edition.title)}" loading="lazy" />`
       : `<div class="spanish-cover-placeholder">Sin portada</div>`;
-    const details = [edition.publisher, edition.collectionName, edition.volumeLabel, edition.formatLabel].filter(Boolean).join(" · ");
+    const details = [edition.publisher, edition.collectionName, edition.volumeLabel, edition.formatLabel, edition.pages ? `${edition.pages} páginas` : ""].filter(Boolean).join(" · ");
     const shownIssues = edition.issues.slice(0, 8);
     const remainingIssues = Math.max(0, edition.issueCount - shownIssues.length);
     return `
@@ -657,11 +696,17 @@ function renderSpanishEditions() {
           </div>
           ${details ? `<p class="muted">${escapeHtml(details)}</p>` : ""}
           ${edition.publicationDate ? `<p class="muted">Publicación: ${escapeHtml(formatDate(edition.publicationDate))}</p>` : ""}
+          ${edition.source === "panini" ? `<div class="tags">
+            <span class="tag tag-source">Importado de Panini</span>
+            ${edition.preferredIssueCount ? `<span class="tag tag-preferred">Prioritario para ${edition.preferredIssueCount} issue(s)</span>` : ""}
+            ${edition.alternativeIssueCount ? `<span class="tag tag-alternative">Alternativa para ${edition.alternativeIssueCount} issue(s)</span>` : ""}
+          </div>` : ""}
           <div class="tags">${edition.characters.map((character) => `<span class="tag">${escapeHtml(character)}</span>`).join("")}</div>
           <div class="spanish-linked-issues">
             <strong>${edition.issueCount} issue(s) USA</strong>
-            ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(issue.title)}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
+            ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a class="${issue.isPreferredSpanishEdition ? "is-preferred" : "is-alternative"}" href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer" title="${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? "Edición prioritaria por cantidad de páginas" : "También incluido en una edición prioritaria más extensa") : ""}">${escapeHtml(issue.title)}${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? " ★" : " · alternativa") : ""}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
           </div>
+          ${edition.containsRaw ? `<p class="muted"><strong>Contiene:</strong> ${escapeHtml(edition.containsRaw)}</p>` : ""}
           ${edition.notes ? `<p>${escapeHtml(edition.notes)}</p>` : ""}
           ${edition.referenceUrl ? `<a href="${escapeHtml(edition.referenceUrl)}" target="_blank" rel="noreferrer">Abrir referencia</a>` : ""}
         </div>
@@ -949,7 +994,8 @@ function renderPending() {
         <div class="pending-copy">
           <strong><a href="${escapeHtml(item.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a></strong>
           <span class="muted">${escapeHtml(item.volumeName || "Volumen sin detectar")}${item.issueLabel ? ` - ${escapeHtml(item.issueLabel)}` : ""}</span>
-          <span class="muted">${escapeHtml(formatDate(item.releaseDate))} - ${escapeHtml(matches)}</span>
+          <span class="muted">${escapeHtml(formatDate(item.releaseDate))}</span>
+          <span class="pending-matches"><strong>Personajes detectados:</strong> ${escapeHtml(matches)}</span>
           ${item.originalityReason ? `<span class="muted">${escapeHtml(item.originalityReason)}</span>` : ""}
         </div>
         <div class="pending-actions">
@@ -1284,7 +1330,7 @@ async function triggerSync() {
     if (!result.started) {
       setSyncStatus("Ya hay una sincronización corriendo");
     } else {
-      setSyncStatus(`Sync lanzada para ${result.weekKey}`);
+      setSyncStatus(`Actualización USA + Panini lanzada para ${result.weekKey}`);
     }
 
     await pollUntilFinished();
@@ -1300,14 +1346,40 @@ async function pollUntilFinished() {
     await new Promise((resolve) => setTimeout(resolve, 2500));
     await loadDashboard();
 
-    if (!state.dashboard.config.syncRunning) {
-      await loadComics();
-      setSyncStatus("Revisión terminada");
+    if (!state.dashboard.config.weeklyUpdateRunning) {
+      await Promise.all([loadComics(), loadCatalogCharacters(), loadCatalogStats(), loadCatalog(), loadSpanishEditions()]);
+      setSyncStatus("Revisión USA + Panini terminada");
       return;
     }
   }
 
   setSyncStatus("La sync sigue corriendo; usá Actualizar vista en unos segundos");
+}
+
+async function triggerPaniniImport() {
+  elements.paniniImportButton.disabled = true;
+  setSyncStatus("Iniciando revisión de Panini...");
+  try {
+    const result = await api("/api/panini/import", {
+      method: "POST",
+      body: JSON.stringify({ full: false })
+    });
+    if (!result.started) return;
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await loadDashboard();
+      await loadSpanishEditions();
+      if (!state.dashboard.config.paniniImportRunning) {
+        setSyncStatus("Revisión de Panini terminada");
+        return;
+      }
+    }
+    setSyncStatus("Panini sigue procesándose en segundo plano; podés actualizar la vista más tarde");
+  } catch (error) {
+    setSyncStatus(error.message);
+  } finally {
+    elements.paniniImportButton.disabled = false;
+  }
 }
 
 function wireFilters() {
@@ -1345,6 +1417,12 @@ function wireCatalogFilters() {
     elements.catalogCharacter.value = state.catalog.filters.character;
     state.catalog.offset = 0;
     await Promise.all([loadCatalogStats(), loadCatalog()]);
+  });
+
+  elements.catalogPageSize.addEventListener("change", async () => {
+    state.catalog.limit = Number(elements.catalogPageSize.value) || 60;
+    state.catalog.offset = 0;
+    await loadCatalog();
   });
 
   for (const input of [
@@ -1435,6 +1513,7 @@ function wireEvents() {
     renderHistoryComics();
   });
   elements.syncButton.addEventListener("click", triggerSync);
+  elements.paniniImportButton.addEventListener("click", triggerPaniniImport);
   elements.catalogImportButton.addEventListener("click", triggerCatalogImport);
   elements.catalogContinueButton.addEventListener("click", triggerCatalogContinue);
   elements.systemInfoButton.addEventListener("click", openSystemModal);
@@ -1443,26 +1522,19 @@ function wireEvents() {
     clearInterval(state.systemMetricsTimer);
     state.systemMetricsTimer = null;
   });
-  elements.catalogPrev.addEventListener("click", async () => {
-    state.catalog.offset = Math.max(0, state.catalog.offset - state.catalog.limit);
-    await loadCatalog();
-    elements.catalogList.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  elements.catalogNext.addEventListener("click", async () => {
-    state.catalog.offset += state.catalog.limit;
-    await loadCatalog();
-    elements.catalogList.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  elements.catalogFirst.addEventListener("click", async () => {
-    state.catalog.offset = 0;
-    await loadCatalog();
-    elements.catalogList.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  elements.catalogLast.addEventListener("click", async () => {
-    state.catalog.offset = Math.max(0, (Math.ceil(state.catalog.total / state.catalog.limit) - 1) * state.catalog.limit);
-    await loadCatalog();
-    elements.catalogList.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  for (const button of elements.catalogPageButtons) {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.catalogPageAction;
+      if (action === "prev") state.catalog.offset = Math.max(0, state.catalog.offset - state.catalog.limit);
+      if (action === "next") state.catalog.offset += state.catalog.limit;
+      if (action === "first") state.catalog.offset = 0;
+      if (action === "last") {
+        state.catalog.offset = Math.max(0, (Math.ceil(state.catalog.total / state.catalog.limit) - 1) * state.catalog.limit);
+      }
+      await loadCatalog();
+      elements.catalogList.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
   elements.automationSave.addEventListener("click", saveAutomationSettings);
   elements.quarterlyRefreshButton.addEventListener("click", triggerQuarterlyRefresh);
   elements.modalClose.addEventListener("click", () => elements.modal.close());

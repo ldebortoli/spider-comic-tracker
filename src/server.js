@@ -244,7 +244,7 @@ const server = http.createServer(async (request, response) => {
         appearance: url.searchParams.get("appearance") || "all",
         from: url.searchParams.get("from") || "",
         to: url.searchParams.get("to") || "",
-        sort: url.searchParams.get("sort") || "series",
+        sort: url.searchParams.get("sort") || "date-asc",
         limit: url.searchParams.get("limit") || "60",
         offset: url.searchParams.get("offset") || "0"
       }));
@@ -264,6 +264,13 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/catalog/refresh-all") {
       const result = service.startQuarterlyRefresh({ triggerSource: "manual", force: true });
       sendJson(response, result.started ? 202 : 200, result);
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/panini/import") {
+      const body = await readRequestBody(request);
+      const result = service.startPaniniImport({ full: body.full === true, triggerSource: "manual" });
+      sendJson(response, result.started ? 202 : 409, result);
       return;
     }
 
@@ -356,9 +363,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const result = service.startSync({
-        triggerSource: "manual"
-      });
+      const result = service.startWeeklyUpdate({ triggerSource: "manual" });
 
       sendJson(response, result.started ? 202 : 409, result);
       return;

@@ -5,6 +5,7 @@ const { pipeline } = require("node:stream/promises");
 
 const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
 const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
+const { importPaniniCatalog } = require("./panini");
 const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex } = require("./utils");
 
 function isIncludedDecision(decision) {
@@ -35,6 +36,7 @@ class ComicTrackerService {
     this.telegram = null;
     this.currentSyncPromise = null;
     this.currentCatalogImportPromise = null;
+    this.currentPaniniImportPromise = null;
     this.currentWeeklyUpdatePromise = null;
     this.currentQuarterlyRefreshPromise = null;
     this.schedulerHandle = null;
@@ -59,6 +61,7 @@ class ComicTrackerService {
         windowsTaskInstalled: fs.existsSync(path.resolve(process.cwd(), "data/weekly-task-installed.json"))
       },
       weeklyUpdate: this.getWeeklyUpdateStatus(),
+      paniniImport: this.getPaniniImportStatus(),
       quarterlyRefresh: this.getQuarterlyRefreshStatus(),
       telegram: this.telegram?.getStatus?.() || { configured: false, running: false },
       config: {
@@ -66,6 +69,7 @@ class ComicTrackerService {
         telegramUserRestricted: Boolean(this.config.telegram.allowedUserId),
         syncRunning: Boolean(this.currentSyncPromise),
         catalogImportRunning: Boolean(this.currentCatalogImportPromise),
+        paniniImportRunning: Boolean(this.currentPaniniImportPromise),
         weeklyUpdateRunning: Boolean(this.currentWeeklyUpdatePromise),
         quarterlyRefreshRunning: Boolean(this.currentQuarterlyRefreshPromise)
       }
@@ -395,6 +399,16 @@ class ComicTrackerService {
     };
   }
 
+  getPaniniImportStatus() {
+    let stored = {};
+    try {
+      stored = JSON.parse(this.db.getState("panini_import_status", "{}"));
+    } catch {
+      stored = {};
+    }
+    return { ...stored, running: Boolean(this.currentPaniniImportPromise) };
+  }
+
   getWeeklyUpdateStatus() {
     let stored = {};
 
@@ -499,7 +513,7 @@ class ComicTrackerService {
   }
 
   startCatalogImport({ characterSlug = "", incremental = false } = {}) {
-    if (this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise) {
+    if (this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise || this.currentPaniniImportPromise) {
       return { started: false, running: true };
     }
 
@@ -597,6 +611,54 @@ class ComicTrackerService {
     }
   }
 
+  startPaniniImport({ full = false, triggerSource = "manual" } = {}) {
+    if (this.currentPaniniImportPromise || this.currentWeeklyUpdatePromise) {
+      return { started: false, running: true };
+    }
+    this.currentPaniniImportPromise = this.performPaniniImport({ full, triggerSource })
+      .catch((error) => console.error("Error importando Panini:", error))
+      .finally(() => { this.currentPaniniImportPromise = null; });
+    return { started: true, running: true, full };
+  }
+
+  async performPaniniImport({ full = false, triggerSource = "manual" } = {}) {
+    const effectiveFull = full || this.db.getState("panini_full_scan_completed", "") !== "true";
+    const baseStatus = { running: true, stage: "starting", full: effectiveFull, triggerSource, startedAt: nowIso() };
+    const saveProgress = (progress) => {
+      this.db.setState("panini_import_status", JSON.stringify({ ...baseStatus, ...progress }));
+    };
+    saveProgress(baseStatus);
+    try {
+      const result = await importPaniniCatalog({
+        listingUrl: this.config.panini.listingUrl,
+        knownUrls: new Set(this.db.listKnownPaniniProductUrls()),
+        pendingProducts: this.db.listPendingPaniniProducts(),
+        full: effectiveFull,
+        concurrency: this.config.panini.concurrency,
+        onProduct: (product) => this.db.processPaniniProduct(product),
+        onProgress: (progress) => saveProgress({ ...progress, running: true })
+      });
+      const completed = { ...result, running: false, full: effectiveFull, triggerSource };
+      if (result.scannedPages >= result.catalogPages) {
+        this.db.setState("panini_full_scan_completed", "true");
+      }
+      this.db.setState("panini_import_status", JSON.stringify(completed));
+      return completed;
+    } catch (error) {
+      const failed = {
+        ...this.getPaniniImportStatus(),
+        running: false,
+        stage: "failed",
+        finishedAt: nowIso(),
+        errorMessage: error.message,
+        full,
+        triggerSource
+      };
+      this.db.setState("panini_import_status", JSON.stringify(failed));
+      throw error;
+    }
+  }
+
   listTrackedCharacters() {
     return this.db.getTrackedCharacters();
   }
@@ -638,7 +700,7 @@ class ComicTrackerService {
       return;
     }
 
-    if (this.currentSyncPromise || this.currentCatalogImportPromise || this.currentWeeklyUpdatePromise) {
+    if (this.currentSyncPromise || this.currentCatalogImportPromise || this.currentPaniniImportPromise || this.currentWeeklyUpdatePromise) {
       return;
     }
 
@@ -670,7 +732,7 @@ class ComicTrackerService {
   }
 
   startWeeklyUpdate({ triggerSource = "scheduled", weekYear, weekNumber } = {}) {
-    if (this.currentWeeklyUpdatePromise || this.currentSyncPromise || this.currentCatalogImportPromise) {
+    if (this.currentWeeklyUpdatePromise || this.currentSyncPromise || this.currentCatalogImportPromise || this.currentPaniniImportPromise) {
       return { started: false, running: true };
     }
 
@@ -728,6 +790,23 @@ class ComicTrackerService {
       const catalogUpdate = await this.currentCatalogImportPromise;
       this.currentCatalogImportPromise = null;
 
+      this.saveWeeklyUpdateStatus({
+        running: true,
+        status: "running",
+        stage: "panini_update",
+        triggerSource,
+        weekKey,
+        startedAt,
+        finishedAt: "",
+        errorMessage: "",
+        weeklyReview,
+        catalogUpdate
+      });
+
+      this.currentPaniniImportPromise = this.performPaniniImport({ full: false, triggerSource: "weekly" });
+      const paniniUpdate = await this.currentPaniniImportPromise;
+      this.currentPaniniImportPromise = null;
+
       const completed = {
         running: false,
         status: "completed",
@@ -742,6 +821,13 @@ class ComicTrackerService {
           importedComics: catalogUpdate.importedComics || 0,
           existingSkipped: catalogUpdate.existingSkipped || 0,
           errors: catalogUpdate.errors?.length || 0
+        },
+        paniniUpdate: {
+          processedProducts: paniniUpdate.processedProducts || 0,
+          matchedProducts: paniniUpdate.matchedProducts || 0,
+          pendingContains: paniniUpdate.pendingContains || 0,
+          pendingMatch: paniniUpdate.pendingMatch || 0,
+          errors: paniniUpdate.errors?.length || 0
         }
       };
       this.saveWeeklyUpdateStatus(completed);
@@ -749,6 +835,7 @@ class ComicTrackerService {
     } catch (error) {
       this.currentSyncPromise = null;
       this.currentCatalogImportPromise = null;
+      this.currentPaniniImportPromise = null;
       const failed = {
         ...this.getWeeklyUpdateStatus(),
         running: false,
@@ -766,7 +853,7 @@ class ComicTrackerService {
   }
 
   startSync({ triggerSource = "manual", weekYear, weekNumber } = {}) {
-    if (this.currentSyncPromise || this.currentWeeklyUpdatePromise) {
+    if (this.currentSyncPromise || this.currentWeeklyUpdatePromise || this.currentPaniniImportPromise) {
       return { started: false, running: true };
     }
 

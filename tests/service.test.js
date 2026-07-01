@@ -23,6 +23,10 @@ async function weeklyUpdateRunsBothStepsTest() {
     calls.push(["catalog-update", options]);
     return { importedComics: 2, existingSkipped: 100, errors: [] };
   };
+  service.performPaniniImport = async (options) => {
+    calls.push(["panini-update", options]);
+    return { processedProducts: 4, matchedProducts: 1, pendingContains: 2, pendingMatch: 1, errors: [] };
+  };
 
   const result = await service.performWeeklyUpdate({
     triggerSource: "scheduled",
@@ -30,11 +34,12 @@ async function weeklyUpdateRunsBothStepsTest() {
     weekNumber: 27
   });
 
-  assert.deepEqual(calls.map(([name]) => name), ["weekly-review", "catalog-update"]);
+  assert.deepEqual(calls.map(([name]) => name), ["weekly-review", "catalog-update", "panini-update"]);
   assert.equal(calls[1][1].incremental, true);
   assert.equal(result.status, "completed");
   assert.equal(result.weekKey, "2026-W27");
   assert.equal(JSON.parse(state.get("weekly_update_status")).catalogUpdate.importedComics, 2);
+  assert.equal(JSON.parse(state.get("weekly_update_status")).paniniUpdate.matchedProducts, 1);
 }
 
 async function quarterlyRefreshTest() {
