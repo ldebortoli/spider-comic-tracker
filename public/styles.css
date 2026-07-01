@@ -444,6 +444,44 @@ select:focus {
   padding: 20px;
 }
 
+.tracking-section-description {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.approved-heading-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  text-align: right;
+}
+
+.approved-heading-actions .button {
+  padding: 10px 14px;
+}
+
+.tracking-history {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.tracking-history-heading {
+  margin-bottom: 0;
+}
+
+.tracking-history-heading h3 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.history-more {
+  justify-self: center;
+}
+
 .tracking-panel > .section-heading:last-child {
   margin-bottom: 0;
 }
@@ -557,6 +595,25 @@ select:focus {
 .comic-card p {
   margin: 0;
   color: var(--muted);
+}
+
+.comics-grid--compact .volume-group__grid {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.comics-grid--compact .comic-card {
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+}
+
+.comics-grid--compact .comic-card img {
+  width: 72px;
+  aspect-ratio: 0.72;
+  grid-row: 1 / span 2;
+}
+
+.comics-grid--compact .comic-card .tags {
+  grid-column: 2;
 }
 
 .tags {
@@ -1209,6 +1266,20 @@ select:focus {
   .spanish-editions-panel .section-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .tracking-panel > .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .approved-heading-actions {
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .approved-heading-actions .button {
+    width: 100%;
   }
 
   .spanish-editions-panel .section-heading .button {

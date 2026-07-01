@@ -200,15 +200,32 @@
           <section class="panel tracking-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Colección</p>
-                <h2>Cómics guardados por volumen</h2>
+                <p class="eyebrow">Seguimiento semanal</p>
+                <h2>Aprobados en la última revisión</h2>
+                <p id="recent-approvals-meta" class="muted tracking-section-description"></p>
               </div>
-              <div id="results-meta" class="muted"></div>
+              <div class="approved-heading-actions">
+                <div id="results-meta" class="muted"></div>
+                <button id="history-toggle" type="button" class="button button-secondary">Ver historial de aprobados</button>
+              </div>
             </div>
             <div id="comics-grid" class="comics-grid"></div>
             <div id="empty-state" class="empty-state hidden">
-              No hay resultados para esos filtros.
+              No se aprobaron cómics en la última revisión o los filtros no tienen resultados.
             </div>
+
+            <section id="history-section" class="tracking-history hidden">
+              <div class="section-heading tracking-history-heading">
+                <div>
+                  <p class="eyebrow">Histórico</p>
+                  <h3>Aprobados en revisiones anteriores</h3>
+                </div>
+                <div id="history-results-meta" class="muted"></div>
+              </div>
+              <div id="history-comics-grid" class="comics-grid comics-grid--compact"></div>
+              <div id="history-empty-state" class="empty-state hidden">Todavía no hay aprobados de semanas anteriores.</div>
+              <button id="history-more" type="button" class="button button-secondary history-more hidden">Mostrar 24 más</button>
+            </section>
           </section>
         </div>
 

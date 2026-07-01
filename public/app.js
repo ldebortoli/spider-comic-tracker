@@ -2,6 +2,9 @@ const state = {
   activeTab: "usa",
   dashboard: null,
   comics: [],
+  historyComics: [],
+  historyOpen: false,
+  historyVisibleCount: 24,
   catalog: {
     stats: null,
     importStatus: {},
@@ -47,6 +50,13 @@ const elements = {
   statsGrid: document.querySelector("#stats-grid"),
   comicsGrid: document.querySelector("#comics-grid"),
   resultsMeta: document.querySelector("#results-meta"),
+  recentApprovalsMeta: document.querySelector("#recent-approvals-meta"),
+  historyToggle: document.querySelector("#history-toggle"),
+  historySection: document.querySelector("#history-section"),
+  historyComicsGrid: document.querySelector("#history-comics-grid"),
+  historyResultsMeta: document.querySelector("#history-results-meta"),
+  historyEmptyState: document.querySelector("#history-empty-state"),
+  historyMore: document.querySelector("#history-more"),
   pendingList: document.querySelector("#pending-list"),
   charactersList: document.querySelector("#characters-list"),
   emptyState: document.querySelector("#empty-state"),
@@ -841,19 +851,9 @@ function groupComicsByVolume(comics) {
     .sort((a, b) => a.volumeName.localeCompare(b.volumeName, "es"));
 }
 
-function renderComics() {
-  const volumeGroups = groupComicsByVolume(state.comics);
-  elements.resultsMeta.textContent = `${state.comics.length} resultados en ${volumeGroups.length} volúmenes`;
-
-  if (!state.comics.length) {
-    elements.comicsGrid.innerHTML = "";
-    elements.emptyState.classList.remove("hidden");
-    return;
-  }
-
-  elements.emptyState.classList.add("hidden");
-
-  elements.comicsGrid.innerHTML = volumeGroups.map((group) => `
+function renderComicGroups(container, comics) {
+  const volumeGroups = groupComicsByVolume(comics);
+  container.innerHTML = volumeGroups.map((group) => `
     <section class="volume-group">
       <div class="volume-group__header">
         <div>
@@ -882,14 +882,45 @@ function renderComics() {
     </section>
   `).join("");
 
-  for (const card of elements.comicsGrid.querySelectorAll(".comic-card")) {
+  for (const card of container.querySelectorAll(".comic-card")) {
     card.addEventListener("click", () => {
-      const comic = state.comics.find((item) => String(item.id) === card.dataset.comicId);
+      const comic = comics.find((item) => String(item.id) === card.dataset.comicId);
       if (comic) {
         openModal(comic);
       }
     });
   }
+
+  return volumeGroups.length;
+}
+
+function renderComics() {
+  const volumeCount = renderComicGroups(elements.comicsGrid, state.comics);
+  const weekKey = state.comics[0]?.weekKey
+    || (state.dashboard?.lastSync?.status === "completed" ? state.dashboard.lastSync.weekKey : "");
+  elements.resultsMeta.textContent = `${state.comics.length} resultados en ${volumeCount} volúmenes`;
+  elements.recentApprovalsMeta.textContent = weekKey
+    ? `Revisión ${weekKey}. Se muestran únicamente los issues aprobados en esa revisión.`
+    : "Todavía no hay una revisión semanal completada.";
+  elements.emptyState.classList.toggle("hidden", state.comics.length > 0);
+}
+
+function renderHistoryComics() {
+  elements.historySection.classList.toggle("hidden", !state.historyOpen);
+  elements.historyToggle.textContent = state.historyOpen ? "Ocultar historial" : "Ver historial de aprobados";
+
+  if (!state.historyOpen) return;
+
+  const sorted = [...state.historyComics].sort((a, b) => {
+    if (a.weekYear !== b.weekYear) return Number(b.weekYear || 0) - Number(a.weekYear || 0);
+    if (a.weekNumber !== b.weekNumber) return Number(b.weekNumber || 0) - Number(a.weekNumber || 0);
+    return String(b.releaseDate || "").localeCompare(String(a.releaseDate || ""));
+  });
+  const visible = sorted.slice(0, state.historyVisibleCount);
+  const volumeCount = renderComicGroups(elements.historyComicsGrid, visible);
+  elements.historyResultsMeta.textContent = `${visible.length} de ${sorted.length} aprobados · ${volumeCount} volúmenes visibles`;
+  elements.historyEmptyState.classList.toggle("hidden", sorted.length > 0);
+  elements.historyMore.classList.toggle("hidden", visible.length >= sorted.length);
 }
 
 function renderPending() {
@@ -1163,8 +1194,21 @@ async function loadComics() {
     }
   }
 
+  params.set("scope", "latest-week");
   state.comics = await api(`/api/comics?${params.toString()}`);
   renderComics();
+
+  if (state.historyOpen) {
+    params.set("scope", "history");
+    state.historyComics = await api(`/api/comics?${params.toString()}`);
+  }
+  renderHistoryComics();
+}
+
+async function toggleApprovalHistory() {
+  state.historyOpen = !state.historyOpen;
+  state.historyVisibleCount = 24;
+  await loadComics();
 }
 
 async function reloadAll() {
@@ -1385,6 +1429,11 @@ function wireAppTabs() {
 
 function wireEvents() {
   elements.refreshButton.addEventListener("click", reloadAll);
+  elements.historyToggle.addEventListener("click", toggleApprovalHistory);
+  elements.historyMore.addEventListener("click", () => {
+    state.historyVisibleCount += 24;
+    renderHistoryComics();
+  });
   elements.syncButton.addEventListener("click", triggerSync);
   elements.catalogImportButton.addEventListener("click", triggerCatalogImport);
   elements.catalogContinueButton.addEventListener("click", triggerCatalogContinue);

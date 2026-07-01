@@ -1273,6 +1273,28 @@ class ComicDatabase {
     const conditions = ["c.decision IN ('auto_added', 'manual_added')"];
     const params = [];
 
+    if (filters.scope === "latest-week") {
+      conditions.push(`
+        c.week_key = COALESCE((
+          SELECT sr.week_key
+          FROM sync_runs sr
+          WHERE sr.status = 'completed'
+          ORDER BY sr.started_at DESC
+          LIMIT 1
+        ), '')
+      `);
+    } else if (filters.scope === "history") {
+      conditions.push(`
+        c.week_key != COALESCE((
+          SELECT sr.week_key
+          FROM sync_runs sr
+          WHERE sr.status = 'completed'
+          ORDER BY sr.started_at DESC
+          LIMIT 1
+        ), '')
+      `);
+    }
+
     if (filters.query) {
       conditions.push("c.title LIKE ?");
       params.push(`%${filters.query}%`);

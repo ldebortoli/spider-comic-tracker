@@ -323,6 +323,43 @@ function webReviewDecisionTest() {
   db.close();
 }
 
+function weeklyApprovalScopesTest() {
+  const db = new ComicDatabase(":memory:");
+  const latestRun = db.createSyncRun({ weekYear: 2026, weekNumber: 27, triggerSource: "test" });
+  db.finishSyncRun(latestRun, { status: "completed", summary: {}, errorMessage: "" });
+
+  const comic = (issue, weekNumber) => ({
+    title: `Prueba semanal #${issue}`,
+    pageTitle: `Prueba semanal Vol 1 ${issue}`,
+    fandomUrl: `https://example.test/weekly-${issue}`,
+    releaseDate: `2026-06-${String(issue).padStart(2, "0")}`,
+    coverImageUrl: "",
+    volumePageTitle: "Prueba semanal Vol 1",
+    volumeName: "Prueba semanal (Vol. 1)",
+    seriesName: "Prueba semanal",
+    volumeNumber: 1,
+    volumeFandomUrl: "https://example.test/weekly-volume",
+    issueLabel: String(issue),
+    issueNumber: issue,
+    weekYear: 2026,
+    weekNumber,
+    weekKey: `2026-W${weekNumber}`,
+    matchSummary: ["Spider-Man"],
+    originalityStatus: "original",
+    originalityReason: "Prueba",
+    decision: "auto_added",
+    decisionReason: "Prueba"
+  });
+
+  db.upsertComic(comic(26, 26));
+  db.upsertComic(comic(27, 27));
+
+  assert.deepEqual(db.listIncludedComics({ scope: "latest-week" }).map((item) => item.issueNumber), [27]);
+  assert.deepEqual(db.listIncludedComics({ scope: "history" }).map((item) => item.issueNumber), [26]);
+  assert.equal(db.listIncludedComics({ scope: "all" }).length, 2);
+  db.close();
+}
+
 const tests = [
   ["parsea una ficha del catalogo", parseCatalogPageTest],
   ["extrae la tapa declarada en Image1", extractCoverFileNameTest],
@@ -334,7 +371,8 @@ const tests = [
   ["una reimportacion conserva la coleccion", collectionStateSurvivesImportTest],
   ["un comic compartido aparece en cada lista sin duplicarse", sharedComicAppearsInEachCharacterTest],
   ["las ediciones en español relacionan varios issues sin datos precargados", spanishEditionsTest],
-  ["una revision web se resuelve una sola vez", webReviewDecisionTest]
+  ["una revision web se resuelve una sola vez", webReviewDecisionTest],
+  ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest]
 ];
 
 for (const [label, fn] of tests) {

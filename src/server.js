@@ -166,6 +166,7 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/comics") {
       sendJson(response, 200, service.listComics({
+        scope: url.searchParams.get("scope") || "all",
         query: url.searchParams.get("query") || "",
         character: url.searchParams.get("character") || "",
         from: url.searchParams.get("from") || "",
