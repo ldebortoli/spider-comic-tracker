@@ -108,6 +108,21 @@ function relatedCharactersSeedTest() {
   }
 }
 
+function unifiedSuggestionCharactersTest() {
+  const db = new ComicDatabase(":memory:");
+  const catalog = db.listCatalogCharacters();
+  const suggestions = db.getTrackedCharacters();
+  assert.equal(suggestions.length, catalog.length);
+  assert.equal(suggestions.some((item) => item.displayName === "Spider-Verse (all variants)"), false);
+  const peter = suggestions.find((item) => item.fandomEntity === "Peter Parker (Earth-616)");
+  assert.ok(peter.aliases.includes("Amazing Spider-Man"));
+  const before = db.getDashboardStats().trackedCharactersCount;
+  db.updateTrackedCharacter(peter.id, { aliases: ["Peter Parker"], active: false });
+  assert.equal(db.getTrackedCharacterById(peter.id).active, false);
+  assert.equal(db.getDashboardStats().trackedCharactersCount, before - 1);
+  db.close();
+}
+
 function extractCoverFileNameTest() {
   assert.equal(
     extractCoverFileName("{{Comic\n| Image1 = Venom Lethal Protector Vol 1 2.jpg\n}}"),
@@ -325,8 +340,15 @@ function paniniPreferenceTest() {
   db.processPaniniProduct(product("small", 120));
   db.processPaniniProduct(product("large", 480));
   db.processPaniniProduct(product("large", 480));
+  db.processPaniniProduct({ ...product("official", 200), isbn: "9780000000001" });
+  db.processPaniniProduct({
+    ...product("um-official", 200),
+    source: "universo_marvel",
+    isbn: "9780000000001",
+    productUrl: "https://fichas.test/um-official.html"
+  });
   const editions = db.listSpanishEditions().items;
-  assert.equal(editions.length, 2);
+  assert.equal(editions.length, 3);
   assert.equal(editions.find((item) => item.sourceKey === "large").preferredIssueCount, 1);
   assert.equal(editions.find((item) => item.sourceKey === "small").alternativeIssueCount, 1);
   db.close();
@@ -414,6 +436,7 @@ const tests = [
   ["clasifica el subtipo de las apariciones menores", appearanceDetailsTest],
   ["usa Cover Date cuando falta Release Date", coverDateFallbackTest],
   ["incluye los personajes relacionados pedidos", relatedCharactersSeedTest],
+  ["unifica sugerencias semanales y personajes del catálogo", unifiedSuggestionCharactersTest],
   ["deduplica apariciones y prioriza la directa", mergeAppearanceMembersTest],
   ["usa la fecha de salida codificada en defaultsort", parseDefaultSortDateTest],
   ["una reimportacion conserva la coleccion", collectionStateSurvivesImportTest],

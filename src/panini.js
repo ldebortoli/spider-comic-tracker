@@ -148,14 +148,14 @@ function expandIssueNumbers(text) {
   return [...numbers];
 }
 
-function chooseVolume(rows, numbers, year, publicationDate) {
+function chooseVolume(rows, numbers, year, publicationDate, volumeHint = null) {
   const byVolume = new Map();
   for (const row of rows) {
     const key = row.volume_number === null || row.volume_number === undefined ? "" : String(row.volume_number);
     if (!byVolume.has(key)) byVolume.set(key, []);
     byVolume.get(key).push(row);
   }
-  const scored = [...byVolume.values()].map((volumeRows) => {
+  const scored = [...byVolume.entries()].filter(([key]) => volumeHint === null || Number(key) === Number(volumeHint)).map(([, volumeRows]) => {
     const matched = volumeRows.filter((row) => numbers.includes(Number(row.issue_number)));
     const years = volumeRows.map((row) => Number(String(row.release_date || "").slice(0, 4))).filter(Number.isFinite);
     const firstYear = years.length ? Math.min(...years) : 0;
@@ -197,14 +197,16 @@ function matchContainsToCatalog(containsRaw, catalogIssues, publicationDate = ""
   for (const group of seriesGroups.values()) {
     const pattern = wordsPattern(group.name);
     if (!pattern) continue;
-    const regex = new RegExp(`\\b${pattern}\\b(?:\\s*\\((\\d{4})\\))?`, "i");
-    const match = regex.exec(source);
-    if (!match) continue;
-    occurrences.push({ group, index: match.index, end: match.index + match[0].length, year: Number(match[1]) || 0 });
+    const regex = new RegExp(`\\b${pattern}\\b(?:\\s*\\((\\d{4})\\))?`, "ig");
+    let match;
+    while ((match = regex.exec(source))) {
+      occurrences.push({ group, index: match.index, end: match.index + match[0].length, year: Number(match[1]) || 0 });
+    }
   }
   occurrences.sort((a, b) => a.index - b.index || b.end - a.end);
   const nonOverlapping = occurrences.filter((item, index, all) => !all.some((other, otherIndex) => (
-    otherIndex !== index && other.index === item.index && other.end > item.end
+    otherIndex !== index && other.index <= item.index && other.end >= item.end &&
+    (other.end - other.index) > (item.end - item.index)
   )));
   const matched = [];
   const unresolved = [];
@@ -215,9 +217,12 @@ function matchContainsToCatalog(containsRaw, catalogIssues, publicationDate = ""
     const separatorIndex = source.slice(occurrence.end, nextIndex).search(/[;\n]/);
     const end = separatorIndex >= 0 ? occurrence.end + separatorIndex : nextIndex;
     const issueText = source.slice(occurrence.end, end).slice(0, 180);
-    const numbers = expandIssueNumbers(issueText);
+    const volumeMatch = issueText.match(/\bvol(?:ume)?\.?\s*(\d+)\b/i);
+    const volumeHint = volumeMatch ? Number(volumeMatch[1]) : null;
+    const numberText = issueText.replace(/\bvol(?:ume)?\.?\s*\d+\b/ig, " ");
+    const numbers = expandIssueNumbers(numberText);
     if (!numbers.length) continue;
-    const chosen = chooseVolume(occurrence.group.rows, numbers, occurrence.year, publicationDate);
+    const chosen = chooseVolume(occurrence.group.rows, numbers, occurrence.year, publicationDate, volumeHint);
     if (!chosen.length) {
       unresolved.push(`${occurrence.group.name}: ${numbers.join(", ")}`);
       continue;

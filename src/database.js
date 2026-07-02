@@ -120,6 +120,23 @@ const SEEDED_TRACKED_CHARACTERS = [
   }
 ];
 
+const TRACKED_TO_CATALOG_ENTITY = {
+  "Peter Parker": "Peter Parker (Earth-616)",
+  "Miles Morales": "Miles Morales (Earth-1610)",
+  "Ghost-Spider": "Gwendolyn Stacy (Earth-65)",
+  Silk: "Cindy Moon (Earth-616)",
+  "Spider-Woman": "Jessica Drew (Earth-616)",
+  "Spider-Boy": "Bailey Briggs (Earth-616)",
+  "Scarlet Spider": "Benjamin Reilly (Earth-616)",
+  "Spider-Man 2099": "Miguel O'Hara (Earth-928)",
+  Venom: "Venom (Symbiote) (Earth-616)",
+  Carnage: "Carnage (Symbiote) (Earth-616)",
+  "Black Cat": "Felicia Hardy (Earth-616)",
+  "Mary Jane Watson": "Mary Jane Watson (Earth-616)",
+  "Gwen Stacy": "Gwendolyne Stacy (Earth-616)",
+  Knull: "Knull (Earth-616)"
+};
+
 class ComicDatabase {
   constructor(dbPath) {
     this.dbPath = dbPath;
@@ -131,6 +148,7 @@ class ComicDatabase {
     this.migrate();
     this.seedTrackedCharacters();
     this.seedCatalogCharacters();
+    this.migrateTrackedCharactersToCatalog();
     this.seedPeterCatalogMembership();
     this.prepareStatements();
   }
@@ -256,6 +274,8 @@ class ComicDatabase {
         kind TEXT NOT NULL CHECK(kind IN ('spider', 'symbiote')),
         reality TEXT NOT NULL DEFAULT '',
         source TEXT NOT NULL DEFAULT 'manual',
+        aliases_json TEXT NOT NULL DEFAULT '[]',
+        weekly_enabled INTEGER NOT NULL DEFAULT 1,
         active INTEGER NOT NULL DEFAULT 1,
         last_comic_date TEXT,
         last_sync_at TEXT,
@@ -321,6 +341,21 @@ class ComicDatabase {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS spanish_source_queue (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source TEXT NOT NULL,
+        source_key TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        product_url TEXT NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'error')),
+        error_message TEXT NOT NULL DEFAULT '',
+        discovered_at TEXT NOT NULL,
+        last_attempt_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        UNIQUE(source, source_key)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_comics_release_date ON comics(release_date DESC);
       CREATE INDEX IF NOT EXISTS idx_comics_decision ON comics(decision);
       CREATE INDEX IF NOT EXISTS idx_volumes_normalized_name ON volumes(normalized_name);
@@ -335,6 +370,7 @@ class ComicDatabase {
       CREATE INDEX IF NOT EXISTS idx_spanish_editions_status ON spanish_editions(purchase_status, publisher COLLATE NOCASE, title COLLATE NOCASE);
       CREATE INDEX IF NOT EXISTS idx_spanish_edition_issues_issue ON spanish_edition_issues(issue_id);
       CREATE INDEX IF NOT EXISTS idx_panini_products_status ON panini_products(status, last_checked_at);
+      CREATE INDEX IF NOT EXISTS idx_spanish_source_queue_pending ON spanish_source_queue(source, status, priority DESC, id);
     `);
 
     this.ensureColumn("comics", "volume_id INTEGER REFERENCES volumes(id)");
@@ -345,6 +381,8 @@ class ComicDatabase {
     this.ensureColumn("spiderman_catalog_issues", "date_source TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("spiderman_catalog_issues", "date_precision TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("catalog_character_issues", "appearance_detail TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("catalog_characters", "aliases_json TEXT NOT NULL DEFAULT '[]'");
+    this.ensureColumn("catalog_characters", "weekly_enabled INTEGER NOT NULL DEFAULT 1");
     this.ensureColumn("spanish_editions", "source TEXT NOT NULL DEFAULT 'manual'");
     this.ensureColumn("spanish_editions", "source_key TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("spanish_editions", "pages INTEGER");
@@ -382,6 +420,37 @@ class ComicDatabase {
         now
       );
     }
+  }
+
+  migrateTrackedCharactersToCatalog() {
+    const alreadyMigrated = this.db.prepare("SELECT value FROM app_state WHERE key = 'unified_character_tracking_v1'").get();
+    if (alreadyMigrated) return;
+    const trackedRows = this.db.prepare("SELECT * FROM tracked_characters").all();
+    const findCatalog = this.db.prepare("SELECT * FROM catalog_characters WHERE fandom_entity = ?");
+    const updateCatalog = this.db.prepare(`
+      UPDATE catalog_characters
+      SET aliases_json = ?, weekly_enabled = ?, updated_at = ?
+      WHERE id = ?
+    `);
+    let migrated = 0;
+
+    for (const tracked of trackedRows) {
+      const entity = TRACKED_TO_CATALOG_ENTITY[tracked.display_name];
+      if (!entity) continue;
+      const catalog = findCatalog.get(entity);
+      if (!catalog) continue;
+      const aliases = uniqueStrings([
+        ...safeJsonParse(catalog.aliases_json, []),
+        ...safeJsonParse(tracked.aliases_json, [])
+      ]);
+      updateCatalog.run(JSON.stringify(aliases), tracked.active ? 1 : 0, nowIso(), catalog.id);
+      migrated += 1;
+    }
+
+    this.db.prepare(`
+      INSERT INTO app_state (key, value) VALUES ('unified_character_tracking_v1', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value
+    `).run(JSON.stringify({ migrated, retiredGroups: ["Spider-Verse (all variants)", "Symbiotes (all variants)"], migratedAt: nowIso() }));
   }
 
   seedPeterCatalogMembership() {
@@ -556,8 +625,8 @@ class ComicDatabase {
       trackedCharacterDelete: this.db.prepare(`DELETE FROM tracked_characters WHERE id = ?`),
       countTrackedCharacters: this.db.prepare(`
         SELECT COUNT(*) AS count
-        FROM tracked_characters
-        WHERE active = 1
+        FROM catalog_characters
+        WHERE active = 1 AND weekly_enabled = 1
       `),
       comicByPageTitle: this.db.prepare(`
         SELECT c.*, v.page_title AS volume_page_title, v.name AS volume_name, v.series_name, v.volume_number,
@@ -977,6 +1046,8 @@ class ComicDatabase {
       kind: row.kind,
       reality: row.reality,
       source: row.source,
+      aliases: safeJsonParse(row.aliases_json, []),
+      weeklyEnabled: Boolean(row.weekly_enabled),
       active: Boolean(row.active),
       issueCount,
       ownedCount,
@@ -1058,33 +1129,40 @@ class ComicDatabase {
   }
 
   getTrackedCharacters() {
-    return this.statements.trackedCharactersAll.all().map((row) => this.mapTrackedCharacter(row));
+    return this.listCatalogCharacters().map((character) => ({
+      id: character.id,
+      displayName: character.displayName,
+      aliases: character.aliases,
+      active: character.weeklyEnabled,
+      fandomEntity: character.fandomEntity,
+      kind: character.kind,
+      reality: character.reality,
+      issueCount: character.issueCount,
+      source: "catalog"
+    }));
   }
 
   createTrackedCharacter({ displayName, aliases, active }) {
-    const now = nowIso();
-    const aliasesJson = JSON.stringify(uniqueStrings(aliases));
-    const result = this.statements.trackedCharacterInsert.run(displayName, aliasesJson, active ? 1 : 0, now, now);
-    return this.getTrackedCharacterById(result.lastInsertRowid);
+    throw new Error("Los personajes se agregan desde el catálogo unificado de Marvel Fandom.");
   }
 
   getTrackedCharacterById(id) {
-    return this.mapTrackedCharacter(this.statements.trackedCharacterById.get(id));
+    return this.getTrackedCharacters().find((character) => character.id === Number(id)) || null;
   }
 
   updateTrackedCharacter(id, { displayName, aliases, active }) {
-    this.statements.trackedCharacterUpdate.run(
-      displayName,
-      JSON.stringify(uniqueStrings(aliases)),
-      active ? 1 : 0,
-      nowIso(),
-      id
-    );
+    this.db.prepare(`
+      UPDATE catalog_characters
+      SET aliases_json = ?, weekly_enabled = ?, updated_at = ?
+      WHERE id = ? AND active = 1
+    `).run(JSON.stringify(uniqueStrings(aliases)), active ? 1 : 0, nowIso(), id);
     return this.getTrackedCharacterById(id);
   }
 
   deleteTrackedCharacter(id) {
-    return this.statements.trackedCharacterDelete.run(id);
+    return this.db.prepare(`
+      UPDATE catalog_characters SET weekly_enabled = 0, updated_at = ? WHERE id = ?
+    `).run(nowIso(), id);
   }
 
   getComicByPageTitle(pageTitle) {
@@ -2003,10 +2081,76 @@ class ComicDatabase {
     `).all();
   }
 
+  queueSpanishSourceProducts(source, products) {
+    const now = nowIso();
+    const insert = this.db.prepare(`
+      INSERT INTO spanish_source_queue (
+        source, source_key, title, product_url, priority, status, discovered_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+      ON CONFLICT(source, source_key) DO UPDATE SET
+        title = CASE WHEN spanish_source_queue.title = '' THEN excluded.title ELSE spanish_source_queue.title END,
+        product_url = excluded.product_url,
+        priority = MAX(spanish_source_queue.priority, excluded.priority),
+        updated_at = excluded.updated_at
+    `);
+    let changes = 0;
+    for (const product of products || []) {
+      changes += Number(insert.run(
+        source,
+        String(product.sourceKey || sourceKeyFromUrl(product.productUrl)),
+        String(product.title || ""),
+        String(product.productUrl || ""),
+        Number(product.priority || 0),
+        now,
+        now
+      ).changes || 0);
+    }
+    return changes;
+  }
+
+  listPendingSpanishSourceProducts(source, limit = 50) {
+    return this.db.prepare(`
+      SELECT id, source, source_key AS sourceKey, title, product_url AS productUrl, priority
+      FROM spanish_source_queue
+      WHERE source = ? AND status IN ('pending', 'error')
+      ORDER BY priority DESC, id ASC
+      LIMIT ?
+    `).all(source, Math.max(1, Math.min(500, Number(limit) || 50)));
+  }
+
+  resolveSpanishSourceQueueItem(id, errorMessage = "") {
+    return this.db.prepare(`
+      UPDATE spanish_source_queue
+      SET status = ?, error_message = ?, last_attempt_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(errorMessage ? "error" : "completed", String(errorMessage || ""), nowIso(), nowIso(), id);
+  }
+
+  getSpanishSourceQueueStats(source) {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS total,
+             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+             SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+             SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
+      FROM spanish_source_queue WHERE source = ?
+    `).get(source) || {};
+    return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value || 0)]));
+  }
+
+  requeueSpanishSourceProducts(source) {
+    return this.db.prepare(`
+      UPDATE spanish_source_queue
+      SET status = 'pending', error_message = '', updated_at = ?
+      WHERE source = ? AND status = 'completed'
+    `).run(nowIso(), source);
+  }
+
   processPaniniProduct(product = {}) {
     const now = nowIso();
     const productUrl = String(product.productUrl || "").trim();
     const sourceKey = String(product.sourceKey || sourceKeyFromUrl(productUrl)).trim();
+    const source = String(product.source || "panini").trim();
+    const publisher = String(product.publisher || "Panini Comics").trim();
     if (!sourceKey || !productUrl) throw new Error("El producto de Panini no tiene URL o identificador.");
     const existingProduct = this.db.prepare("SELECT * FROM panini_products WHERE source_key = ?").get(sourceKey);
 
@@ -2049,34 +2193,47 @@ class ComicDatabase {
         `).all(...match.issueIds);
         const charactersJson = JSON.stringify(characterRows.map((row) => row.display_name));
         const existingEdition = this.db.prepare(`
-          SELECT id, purchase_status, notes FROM spanish_editions
-          WHERE source = 'panini' AND source_key = ?
-        `).get(sourceKey);
+          SELECT id, purchase_status, notes, source, source_key FROM spanish_editions
+          WHERE (source = ? AND source_key = ?)
+             OR (? != '' AND isbn = ? AND publisher = ?)
+          ORDER BY CASE WHEN source = ? AND source_key = ? THEN 0 ELSE 1 END
+          LIMIT 1
+        `).get(source, sourceKey, product.isbn || "", product.isbn || "", publisher, source, sourceKey);
 
         if (existingEdition) {
           editionId = Number(existingEdition.id);
-          this.db.prepare(`
-            UPDATE spanish_editions
-            SET title = ?, publisher = 'Panini Comics', publication_date = ?, isbn = ?, cover_image_url = ?,
-                reference_url = ?, format_label = ?, characters_json = ?, source = 'panini', source_key = ?,
-                pages = ?, contains_raw = ?, last_checked_at = ?, updated_at = ?
-            WHERE id = ?
-          `).run(
-            product.title || sourceKey, product.publicationDate || null, product.isbn || "", product.coverImageUrl || "",
-            productUrl, product.formatLabel || "", charactersJson, sourceKey, product.pages || null,
-            containsRaw, now, now, editionId
-          );
+          if (existingEdition.source === source && existingEdition.source_key === sourceKey) {
+            this.db.prepare(`
+              UPDATE spanish_editions
+              SET title = ?, publisher = ?, publication_date = ?, isbn = ?, cover_image_url = ?,
+                  reference_url = ?, format_label = ?, characters_json = ?, source = ?, source_key = ?,
+                  pages = ?, contains_raw = ?, last_checked_at = ?, updated_at = ?
+              WHERE id = ?
+            `).run(
+              product.title || sourceKey, publisher, product.publicationDate || null, product.isbn || "", product.coverImageUrl || "",
+              productUrl, product.formatLabel || "", charactersJson, source, sourceKey, product.pages || null,
+              containsRaw, now, now, editionId
+            );
+          } else {
+            this.db.prepare(`
+              UPDATE spanish_editions
+              SET pages = MAX(COALESCE(pages, 0), ?),
+                  contains_raw = CASE WHEN trim(contains_raw) = '' THEN ? ELSE contains_raw END,
+                  characters_json = ?, last_checked_at = ?, updated_at = ?
+              WHERE id = ?
+            `).run(product.pages || 0, containsRaw, charactersJson, now, now, editionId);
+          }
         } else {
           const result = this.db.prepare(`
             INSERT INTO spanish_editions (
               title, publisher, collection_name, volume_label, format_label, publication_date,
               isbn, cover_image_url, reference_url, purchase_status, characters_json, notes,
               source, source_key, pages, contains_raw, last_checked_at, created_at, updated_at
-            ) VALUES (?, 'Panini Comics', '', '', ?, ?, ?, ?, ?, 'wanted', ?, '', 'panini', ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, '', '', ?, ?, ?, ?, ?, 'wanted', ?, '', ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            product.title || sourceKey, product.formatLabel || "", product.publicationDate || null,
-            product.isbn || "", product.coverImageUrl || "", productUrl, charactersJson, sourceKey,
-            product.pages || null, containsRaw, now, now, now
+            product.title || sourceKey, publisher, product.formatLabel || "", product.publicationDate || null,
+            product.isbn || "", product.coverImageUrl || "", productUrl, charactersJson, source,
+            sourceKey, product.pages || null, containsRaw, now, now, now
           );
           editionId = Number(result.lastInsertRowid);
         }

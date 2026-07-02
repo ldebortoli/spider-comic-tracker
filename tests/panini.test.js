@@ -35,7 +35,10 @@ function matchingTest() {
     { id: 2, series_name: "Amazing Spider-Man", volume_number: 1, issue_number: 2, release_date: "1963-05-01" },
     { id: 3, series_name: "Amazing Spider-Man", volume_number: 6, issue_number: 1, release_date: "2022-04-01" },
     { id: 4, series_name: "Amazing Spider-Man", volume_number: 6, issue_number: 2, release_date: "2022-05-01" },
-    { id: 5, series_name: "Venom: Lethal Protector", volume_number: 1, issue_number: 1, release_date: "1993-02-01" }
+    { id: 5, series_name: "Venom: Lethal Protector", volume_number: 1, issue_number: 1, release_date: "1993-02-01" },
+    { id: 6, series_name: "Spider-Man", volume_number: 1, issue_number: 13, release_date: "1991-01-01" },
+    { id: 7, series_name: "Spider-Man", volume_number: 2, issue_number: 13, release_date: "2017-01-01" },
+    { id: 8, series_name: "Spider-Man", volume_number: 2, issue_number: 2, release_date: "2016-01-01" }
   ];
   const result = matchContainsToCatalog(
     "Amazing Spider-Man (1963) 1-2; Venom: Lethal Protector 1",
@@ -43,6 +46,11 @@ function matchingTest() {
     "2026-01-01"
   );
   assert.deepEqual(result.issueIds.sort((a, b) => a - b), [1, 2, 5]);
+  assert.deepEqual(matchContainsToCatalog("Spider-Man Vol.2 #13", rows, "2017-06-01").issueIds, [7]);
+  assert.deepEqual(
+    matchContainsToCatalog("Spider-Man Vol.2 #2; Spider-Man Vol.2 #13", rows, "2017-06-01").issueIds.sort((a, b) => a - b),
+    [7, 8]
+  );
   assert.deepEqual(expandIssueNumbers("1-3, 7 y 9"), [1, 2, 3, 7, 9]);
 }
 

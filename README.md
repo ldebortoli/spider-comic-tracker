@@ -94,7 +94,7 @@ El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.
 
-La actualización automática semanal ejecuta tres pasos secuenciales: revisa la semana USA actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de Panini. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
+La actualización automática semanal ejecuta tres pasos secuenciales: revisa la semana USA actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de las fuentes españolas. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
 
 El horario tambien se puede activar, desactivar o modificar desde **Recursos y servidor**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
@@ -126,11 +126,11 @@ npm run repair:dates
 
 El apartado permite registrar manualmente tomos, integrales, grapas o colecciones con estado **Quiero comprar** o **Ya tengo**, editorial, línea, personajes, ISBN, portada, referencia y notas.
 
-También importa el catálogo Marvel de Panini España. Cada producto se identifica por su URL para no duplicarlo. El servidor abre su ficha, lee **Contiene** y **Páginas**, relaciona los números declarados con el catálogo USA y solo publica en la lista las ediciones que tienen al menos una coincidencia. Los productos que todavía no publican **Contiene** quedan pendientes para la siguiente revisión semanal.
+También importa el catálogo Marvel de Panini España. Si la tienda oficial activa su sala de espera, continúa con [Fichas Universo Marvel](https://fichas.universomarvel.com/), que publica fecha, formato, páginas, portada y el contenido USA de cada edición. Cada producto se identifica por fuente y URL para no duplicarlo. El servidor relaciona los números declarados con el catálogo USA y solo publica en la lista las ediciones que tienen al menos una coincidencia.
 
 Un issue USA puede pertenecer a varias ediciones españolas. En ese caso se conservan todas y se marca como prioritaria la edición con más páginas; las demás se muestran como alternativas. La primera importación recorre el catálogo completo y es reanudable; las siguientes revisan novedades y pendientes.
 
-La lista editable de **Seguimiento complementario** es la fuente de las sugerencias semanales y sus alias. No es idéntica al catálogo histórico de personajes: este último es mucho más amplio y se obtiene de las categorías de Marvel Fandom.
+Los personajes de las sugerencias semanales y del catálogo histórico están unificados. Cada ficha activa del catálogo puede participar en las sugerencias mediante su categoría exacta de Marvel Fandom; desde **Seguimiento complementario** se pueden ajustar alias o excluir personajes concretos. Los antiguos grupos genéricos “Spider-Verse (all variants)” y “Symbiotes (all variants)” ya no son necesarios.
 
 Para completar subtipos en datos importados antes de esta función:
 

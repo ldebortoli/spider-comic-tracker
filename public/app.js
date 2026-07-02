@@ -39,6 +39,7 @@ const state = {
     to: ""
   },
   editingCharacterId: null,
+  suggestionQuery: "",
   editingCatalogIssueId: null,
   systemMetricsTimer: null
 };
@@ -97,6 +98,8 @@ const elements = {
   characterAliases: document.querySelector("#character-aliases"),
   characterActive: document.querySelector("#character-active"),
   characterReset: document.querySelector("#character-reset"),
+  suggestionCharacterQuery: document.querySelector("#suggestion-character-query"),
+  suggestionCharactersSummary: document.querySelector("#suggestion-characters-summary"),
   catalogStatsGrid: document.querySelector("#catalog-stats-grid"),
   catalogSourceMeta: document.querySelector("#catalog-source-meta"),
   catalogResultsMeta: document.querySelector("#catalog-results-meta"),
@@ -111,7 +114,7 @@ const elements = {
   catalogOwnership: document.querySelector("#catalog-ownership"),
   catalogAppearance: document.querySelector("#catalog-appearance"),
   catalogSort: document.querySelector("#catalog-sort"),
-  catalogPageSize: document.querySelector("#catalog-page-size"),
+  catalogPageSizes: document.querySelectorAll("[data-catalog-page-size]"),
   catalogFrom: document.querySelector("#catalog-from"),
   catalogTo: document.querySelector("#catalog-to"),
   collectionModal: document.querySelector("#collection-modal"),
@@ -203,6 +206,16 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function normalizeForSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function formatDateTime(isoDate) {
@@ -511,6 +524,7 @@ function renderCatalog() {
   elements.catalogResultsMeta.textContent = `${total} resultado(s)`;
   const pageMeta = `${first}-${last} de ${total} / página ${page} de ${pages}`;
   for (const element of elements.catalogPageMetas) element.textContent = pageMeta;
+  for (const select of elements.catalogPageSizes) select.value = String(limit);
   for (const button of elements.catalogPageButtons) {
     const action = button.dataset.catalogPageAction;
     button.disabled = action === "first" || action === "prev" ? offset <= 0 : offset + limit >= total;
@@ -662,14 +676,17 @@ function renderSpanishEditions() {
   renderSpanishFilterOptions();
   const paniniStatus = state.dashboard?.paniniImport || {};
   elements.paniniImportButton.disabled = Boolean(paniniStatus.running);
-  elements.paniniImportButton.textContent = paniniStatus.running ? "Actualizando Panini..." : "Actualizar desde Panini";
+  elements.paniniImportButton.textContent = paniniStatus.running ? "Actualizando fuentes..." : "Actualizar fuentes españolas";
+  const universoStatus = paniniStatus.universoMarvel || {};
   elements.paniniImportMeta.textContent = paniniStatus.running
-    ? `Importación en curso: ${paniniStatus.processedProducts || 0} de ${paniniStatus.queuedProducts || 0} productos revisados.`
+    ? `Importación en curso: ${paniniStatus.processedProducts || paniniStatus.processed || 0} productos revisados.`
     : paniniStatus.stage === "failed"
       ? `Último intento de Panini interrumpido: ${paniniStatus.errorMessage || "error sin detalle"}.`
+    : paniniStatus.stage === "completed_with_warnings"
+      ? `Fichas Universo Marvel procesadas: ${universoStatus.processed || 0}; pendientes: ${universoStatus.queue?.pending || 0}. La tienda oficial no estuvo disponible: ${paniniStatus.officialError}`
     : stats.paniniLastCheckedAt
-      ? `Última revisión de Panini: ${formatDateTime(stats.paniniLastCheckedAt)}. Los productos sin «Contiene» quedan pendientes para la próxima ejecución.`
-      : "Panini todavía no fue importado. La primera revisión recorre el catálogo completo y las siguientes procesan novedades y pendientes.";
+      ? `Última revisión de fuentes españolas: ${formatDateTime(stats.paniniLastCheckedAt)}. Los productos pendientes se retoman en la próxima ejecución.`
+      : "Las fuentes españolas todavía no fueron importadas. Se consulta la tienda de Panini y Fichas Universo Marvel.";
 
   const hasFilters = Object.values(state.spanishEditions.filters).some(Boolean);
   elements.spanishEmpty.classList.toggle("hidden", items.length > 0);
@@ -698,8 +715,8 @@ function renderSpanishEditions() {
           </div>
           ${details ? `<p class="muted">${escapeHtml(details)}</p>` : ""}
           ${edition.publicationDate ? `<p class="muted">Publicación: ${escapeHtml(formatDate(edition.publicationDate))}</p>` : ""}
-          ${edition.source === "panini" ? `<div class="tags">
-            <span class="tag tag-source">Importado de Panini</span>
+          ${["panini", "universo_marvel"].includes(edition.source) ? `<div class="tags">
+            <span class="tag tag-source">${edition.source === "universo_marvel" ? "Fuente: Fichas Universo Marvel" : "Fuente: Panini España"}</span>
             ${edition.preferredIssueCount ? `<span class="tag tag-preferred">Prioritario para ${edition.preferredIssueCount} issue(s)</span>` : ""}
             ${edition.alternativeIssueCount ? `<span class="tag tag-alternative">Alternativa para ${edition.alternativeIssueCount} issue(s)</span>` : ""}
           </div>` : ""}
@@ -1135,17 +1152,27 @@ function closeSystemModal() {
 
 function renderCharacters() {
   const trackedCharacters = window.__trackedCharacters || [];
+  const query = normalizeForSearch(state.suggestionQuery);
+  const filtered = trackedCharacters.filter((character) => !query || normalizeForSearch([
+    character.displayName,
+    character.fandomEntity,
+    character.reality,
+    ...character.aliases
+  ].join(" ")).includes(query));
+  const visible = filtered.slice(0, 50);
+  const enabledCount = trackedCharacters.filter((character) => character.active).length;
+  elements.suggestionCharactersSummary.textContent = `${enabledCount} de ${trackedCharacters.length} personajes del catálogo participan en las sugerencias. ${filtered.length > visible.length ? `Mostrando los primeros ${visible.length} resultados.` : ""}`;
 
-  elements.charactersList.innerHTML = trackedCharacters.map((character) => `
+  elements.charactersList.innerHTML = visible.map((character) => `
     <article class="character-item">
-      <strong>${character.displayName}</strong>
+      <strong>${escapeHtml(character.displayName)}</strong>
+      <p class="muted">${escapeHtml(character.reality || "Realidad sin datos")} · ${character.issueCount || 0} issues</p>
       <div class="tags">
-        ${character.aliases.map((alias) => `<span class="tag">${alias}</span>`).join("")}
+        ${character.aliases.map((alias) => `<span class="tag">${escapeHtml(alias)}</span>`).join("")}
       </div>
-      <p class="muted">${character.active ? "Activo" : "Inactivo"}</p>
+      <p class="muted">${character.active ? "Incluido en sugerencias" : "Excluido de sugerencias"}</p>
       <div class="character-actions">
-        <button class="button button-secondary" data-action="edit" data-id="${character.id}">Editar</button>
-        <button class="button button-secondary" data-action="delete" data-id="${character.id}">Borrar</button>
+        <button class="button button-secondary" data-action="edit" data-id="${character.id}">Configurar</button>
       </div>
     </article>
   `).join("");
@@ -1161,12 +1188,8 @@ function renderCharacters() {
         elements.characterName.value = character.displayName;
         elements.characterAliases.value = character.aliases.join(", ");
         elements.characterActive.checked = character.active;
-        elements.characterName.focus();
-      }
-
-      if (button.dataset.action === "delete") {
-        await api(`/api/tracked-characters/${id}`, { method: "DELETE" });
-        await reloadAll();
+        elements.characterForm.classList.remove("hidden");
+        elements.characterAliases.focus();
       }
     });
   }
@@ -1188,6 +1211,7 @@ function resetCharacterForm() {
   elements.characterName.value = "";
   elements.characterAliases.value = "";
   elements.characterActive.checked = true;
+  elements.characterForm.classList.add("hidden");
 }
 
 async function loadDashboard() {
@@ -1421,11 +1445,14 @@ function wireCatalogFilters() {
     await Promise.all([loadCatalogStats(), loadCatalog()]);
   });
 
-  elements.catalogPageSize.addEventListener("change", async () => {
-    state.catalog.limit = Number(elements.catalogPageSize.value) || 60;
-    state.catalog.offset = 0;
-    await loadCatalog();
-  });
+  for (const select of elements.catalogPageSizes) {
+    select.addEventListener("change", async () => {
+      state.catalog.limit = Number(select.value) || 60;
+      state.catalog.offset = 0;
+      for (const sibling of elements.catalogPageSizes) sibling.value = String(state.catalog.limit);
+      await loadCatalog();
+    });
+  }
 
   for (const input of [
     elements.catalogQuery,
@@ -1570,6 +1597,10 @@ function wireEvents() {
   });
 
   elements.characterReset.addEventListener("click", resetCharacterForm);
+  elements.suggestionCharacterQuery.addEventListener("input", () => {
+    state.suggestionQuery = elements.suggestionCharacterQuery.value;
+    renderCharacters();
+  });
   elements.characterForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
@@ -1579,17 +1610,11 @@ function wireEvents() {
       active: elements.characterActive.checked
     };
 
-    if (state.editingCharacterId) {
-      await api(`/api/tracked-characters/${state.editingCharacterId}`, {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      });
-    } else {
-      await api("/api/tracked-characters", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
-    }
+    if (!state.editingCharacterId) return;
+    await api(`/api/tracked-characters/${state.editingCharacterId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
 
     resetCharacterForm();
     await reloadAll();

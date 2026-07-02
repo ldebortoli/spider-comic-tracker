@@ -6,6 +6,7 @@ const { pipeline } = require("node:stream/promises");
 const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
 const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
 const { importPaniniCatalog } = require("./panini");
+const { importUniversoMarvelCatalog } = require("./universo-marvel");
 const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex } = require("./utils");
 
 function isIncludedDecision(decision) {
@@ -629,19 +630,50 @@ class ComicTrackerService {
     };
     saveProgress(baseStatus);
     try {
-      const result = await importPaniniCatalog({
-        listingUrl: this.config.panini.listingUrl,
-        knownUrls: new Set(this.db.listKnownPaniniProductUrls()),
-        pendingProducts: this.db.listPendingPaniniProducts(),
-        full: effectiveFull,
-        concurrency: this.config.panini.concurrency,
-        onProduct: (product) => this.db.processPaniniProduct(product),
-        onProgress: (progress) => saveProgress({ ...progress, running: true })
-      });
-      const completed = { ...result, running: false, full: effectiveFull, triggerSource };
-      if (result.scannedPages >= result.catalogPages) {
+      let official = null;
+      let officialError = "";
+      try {
+        official = await importPaniniCatalog({
+          listingUrl: this.config.panini.listingUrl,
+          knownUrls: new Set(this.db.listKnownPaniniProductUrls()),
+          pendingProducts: this.db.listPendingPaniniProducts().filter((item) => !String(item.sourceKey || "").startsWith("um-")),
+          full: effectiveFull,
+          concurrency: this.config.panini.concurrency,
+          onProduct: (product) => this.db.processPaniniProduct(product),
+          onProgress: (progress) => saveProgress({ ...progress, running: true })
+        });
+      } catch (error) {
+        officialError = error.message;
+        saveProgress({ running: true, stage: "official_source_unavailable", warning: officialError });
+      }
+      if (official && official.scannedPages >= official.catalogPages) {
         this.db.setState("panini_full_scan_completed", "true");
       }
+
+      const universoMarvel = await importUniversoMarvelCatalog({
+        db: this.db,
+        indexBatch: effectiveFull ? 75 : 25,
+        productBatch: effectiveFull ? 500 : 100,
+        concurrency: this.config.panini.concurrency,
+        onProgress: (progress) => saveProgress({ ...progress, running: true, officialError })
+      });
+      const completed = {
+        running: false,
+        stage: officialError ? "completed_with_warnings" : "completed",
+        status: officialError ? "completed_with_warnings" : "completed",
+        full: effectiveFull,
+        triggerSource,
+        startedAt: baseStatus.startedAt,
+        finishedAt: nowIso(),
+        official,
+        officialError,
+        universoMarvel,
+        processedProducts: Number(official?.processedProducts || 0) + Number(universoMarvel.processed || 0),
+        matchedProducts: Number(official?.matchedProducts || 0) + Number(universoMarvel.matched || 0),
+        pendingContains: Number(official?.pendingContains || 0),
+        pendingMatch: Number(official?.pendingMatch || 0) + Number(universoMarvel.pendingMatch || 0),
+        errors: [...(official?.errors || []), ...(universoMarvel.errors || [])]
+      };
       this.db.setState("panini_import_status", JSON.stringify(completed));
       return completed;
     } catch (error) {

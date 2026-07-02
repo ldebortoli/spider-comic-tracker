@@ -207,6 +207,42 @@ function collectSection(lines, label) {
   return uniqueStrings(values);
 }
 
+function parseAppearanceCategories(categories) {
+  const appearances = [];
+  for (const category of categories || []) {
+    const title = String(category?.title || category || "");
+    const match = title.match(/^Category:(.+?)\/(Minor )?Appearances$/i);
+    if (!match) continue;
+    appearances.push({
+      fandomEntity: match[1],
+      appearanceType: match[2] ? "minor" : "direct"
+    });
+  }
+  return appearances;
+}
+
+async function fetchComicAppearanceCategories({ baseUrl, pageTitle }) {
+  const categories = [];
+  let continuation = "";
+  do {
+    const url = new URL(`${String(baseUrl).replace(/\/$/, "")}/api.php`);
+    const params = {
+      action: "query",
+      prop: "categories",
+      titles: pageTitle,
+      cllimit: "max",
+      format: "json",
+      formatversion: "2"
+    };
+    if (continuation) params.clcontinue = continuation;
+    url.search = new URLSearchParams(params).toString();
+    const payload = await fetchJson(url);
+    categories.push(...(payload?.query?.pages?.[0]?.categories || []));
+    continuation = payload?.continue?.clcontinue || "";
+  } while (continuation);
+  return parseAppearanceCategories(categories);
+}
+
 function extractSynopsis(lines) {
   const index = findLineIndex(lines, "Solicit Synopsis");
 
@@ -534,6 +570,22 @@ function classifyComic(details, trackedCharacters) {
   const synopsis = details.synopsis || "";
 
   for (const character of trackedCharacters.filter((item) => item.active)) {
+    const categoryAppearance = (details.appearanceCategories || []).find((appearance) => (
+      normalizeText(appearance.fandomEntity) === normalizeText(character.fandomEntity)
+    ));
+    if (categoryAppearance) {
+      const direct = categoryAppearance.appearanceType === "direct";
+      matches.push({
+        character: character.displayName,
+        section: direct ? "category_direct" : "category_minor",
+        alias: character.fandomEntity,
+        strength: direct ? "strong" : "weak",
+        evidence: direct
+          ? `Marvel Fandom lo incluye en las apariciones de ${character.displayName}.`
+          : `Marvel Fandom lo incluye como aparición menor de ${character.displayName}.`
+      });
+    }
+
     for (const alias of character.aliases) {
       if (!alias) {
         continue;
@@ -744,8 +796,12 @@ async function fetchWeekReleases({ baseUrl, weekYear, weekNumber }) {
 }
 
 async function fetchComicDetails({ baseUrl, pageTitle }) {
-  const html = await fetchText(buildRenderUrl(baseUrl, pageTitle));
+  const [html, appearanceCategories] = await Promise.all([
+    fetchText(buildRenderUrl(baseUrl, pageTitle)),
+    fetchComicAppearanceCategories({ baseUrl, pageTitle })
+  ]);
   const details = parseComicArticleHtml(pageTitle, html, baseUrl);
+  details.appearanceCategories = appearanceCategories;
 
   details.volumeSourceHtml = "";
   details.volumeType = "";
@@ -773,7 +829,9 @@ module.exports = {
   deriveVolumeInfo,
   evaluateOriginality,
   fetchComicDetails,
+  fetchComicAppearanceCategories,
   fetchWeekReleases,
   parseComicArticleHtml,
+  parseAppearanceCategories,
   shouldFetchVolumeMetadata
 };

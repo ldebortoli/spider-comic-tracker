@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 
-const { classifyComic, deriveVolumeInfo, evaluateOriginality, parseComicArticleHtml } = require("../src/marvel");
+const { classifyComic, deriveVolumeInfo, evaluateOriginality, parseAppearanceCategories, parseComicArticleHtml } = require("../src/marvel");
 
 function parseComicArticleHtmlTest() {
   const html = `
@@ -75,6 +75,32 @@ function classifyAutoAddTest() {
 
   assert.equal(classification.decision, "auto_added");
   assert.deepEqual(classification.matchSummary, ["Peter Parker"]);
+}
+
+function classifyFromCatalogCategoryTest() {
+  const appearances = parseAppearanceCategories([
+    { title: "Category:Peter Parker (Earth-616)/Appearances" },
+    { title: "Category:Mary Jane Watson (Earth-616)/Minor Appearances" },
+    { title: "Category:Zeb Wells/Writer" }
+  ]);
+  const classification = classifyComic({
+    title: "A New Weekly Comic #1",
+    synopsis: "",
+    featuredCharacters: [],
+    supportingCharacters: [],
+    antagonists: [],
+    otherCharacters: [],
+    appearanceCategories: appearances
+  }, [{
+    id: 1,
+    displayName: "Peter Parker / Spider-Man",
+    fandomEntity: "Peter Parker (Earth-616)",
+    aliases: [],
+    active: true
+  }]);
+  assert.equal(classification.decision, "auto_added");
+  assert.deepEqual(classification.matchSummary, ["Peter Parker / Spider-Man"]);
+  assert.equal(appearances.length, 2);
 }
 
 function classifyPendingReviewTest() {
@@ -155,6 +181,7 @@ const tests = [
   ["parseComicArticleHtml extrae titulo, fecha, tapa y personajes", parseComicArticleHtmlTest],
   ["deriveVolumeInfo ubica correctamente el volumen", deriveVolumeInfoFromPageTitleTest],
   ["classifyComic auto-agrega cuando la coincidencia es fuerte", classifyAutoAddTest],
+  ["classifyComic usa las categorías exactas del catálogo unificado", classifyFromCatalogCategoryTest],
   ["classifyComic manda a revision cuando solo hay coincidencia debil", classifyPendingReviewTest],
   ["classifyComic rechaza reediciones evidentes", classifyReprintRejectTest],
   ["evaluateOriginality marca como duda un tomo sospechoso", evaluateOriginalityUncertainTest]
