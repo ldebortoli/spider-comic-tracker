@@ -206,7 +206,9 @@ const server = http.createServer(async (request, response) => {
         query: url.searchParams.get("query") || "",
         publisher: url.searchParams.get("publisher") || "",
         character: url.searchParams.get("character") || "",
-        status: url.searchParams.get("status") || ""
+        status: url.searchParams.get("status") || "",
+        limit: url.searchParams.get("limit") || "20",
+        offset: url.searchParams.get("offset") || "0"
       }));
       return;
     }

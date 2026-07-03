@@ -298,6 +298,7 @@ function spanishEditionsTest() {
   assert.deepEqual(created.characters, ["Peter Parker", "Venom"]);
   assert.equal(db.listSpanishEditions({ publisher: "Panini Comics" }).items.length, 1);
   assert.equal(db.listSpanishEditions({ character: "Venom" }).items.length, 1);
+  assert.equal(db.listSpanishEditions({ limit: 1, offset: 0 }).total, 1);
   assert.equal(db.searchCatalogIssues("Amazing Spider-Man").length, 1);
 
   const updated = db.saveSpanishEdition(created.id, {
@@ -429,6 +430,29 @@ function weeklyApprovalScopesTest() {
   db.close();
 }
 
+function futureIssuesStayHiddenTest() {
+  const db = new ComicDatabase(":memory:");
+  db.upsertCatalogIssues([{
+    fandomPageId: 999001,
+    pageTitle: "Future Spider Test Vol 1 1",
+    title: "Future Spider Test (Vol. 1) #1",
+    fandomUrl: "https://example.test/future-spider-test-1",
+    seriesName: "Future Spider Test",
+    volumeNumber: 1,
+    issueLabel: "1",
+    issueNumber: 1,
+    releaseDate: "2999-01-01",
+    coverImageUrl: "",
+    writers: [],
+    appearanceType: "direct",
+    sourceDefaultSort: ""
+  }]);
+  db.replaceCatalogCharacterIssues("peter-parker-earth-616", [{ pageId: 999001, appearanceType: "direct" }]);
+  assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616" }).total, 0);
+  assert.equal(db.getCatalogStats("peter-parker-earth-616").totalCount, 0);
+  db.close();
+}
+
 const tests = [
   ["parsea una ficha del catalogo", parseCatalogPageTest],
   ["extrae la tapa declarada en Image1", extractCoverFileNameTest],
@@ -444,7 +468,8 @@ const tests = [
   ["las ediciones en español relacionan varios issues sin datos precargados", spanishEditionsTest],
   ["Panini no duplica productos y prioriza el tomo con más páginas", paniniPreferenceTest],
   ["una revision web se resuelve una sola vez", webReviewDecisionTest],
-  ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest]
+  ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest],
+  ["oculta issues futuros hasta su fecha de publicacion", futureIssuesStayHiddenTest]
 ];
 
 for (const [label, fn] of tests) {

@@ -113,7 +113,9 @@ function parseUniversoMarvelProduct(html, productUrl, fallbackTitle = "") {
   const title = sanitizeLine(titleMatch?.[1] || fallbackTitle)
     .replace(/^Universo Marvel:\s*/i, "")
     .replace(/\s*-\s*Panini\s*$/i, "");
-  const coverMatch = String(html || "").match(/<!--\s*Portada\s*-->[\s\S]*?<img[^>]+src=["']?([^"'\s>]+)/i);
+  const sourceHtml = String(html || "");
+  const coverMatch = sourceHtml.match(/<img[^>]+src=["']?([^"'\s>]*\bportadas\/[^"'\s>]+)["']?[^>]*>/i)
+    || sourceHtml.match(/MM_openBrWindow\(["']([^"']*\bportadas\/[^"']+)["']/i);
   const pagesMatch = sanitizeLine(html).match(/(\d+)\s*P[aá]ginas/i);
   const isbnMatch = sanitizeLine(html).match(/\bCB:\s*([0-9X-]+)/i);
   const dateMatch = String(html || "").match(/href=["'][^"']*\/fechases\/[^"']+["'][^>]*>([\s\S]*?)<\/a>/i);
@@ -135,7 +137,9 @@ function parseUniversoMarvelProduct(html, productUrl, fallbackTitle = "") {
     sourceKey: sourceKey(productUrl),
     title,
     productUrl,
-    coverImageUrl: coverMatch ? new URL(decodeHtmlEntities(coverMatch[1]), productUrl).toString() : "",
+    coverImageUrl: coverMatch && !/^\.\.\/usa\/portadas\//i.test(coverMatch[1])
+      ? new URL(decodeHtmlEntities(coverMatch[1]), productUrl).toString()
+      : "",
     publicationDate: parseSpanishMonthYear(dateMatch?.[1] || ""),
     pages: pagesMatch ? Number(pagesMatch[1]) : null,
     isbn: isbnMatch?.[1] || "",
@@ -212,6 +216,7 @@ async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch =
 module.exports = {
   BASE_URL,
   discoverCollection,
+  fetchPage,
   importUniversoMarvelCatalog,
   parseDirectory,
   parseIndexLinks,

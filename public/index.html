@@ -20,12 +20,12 @@
           </p>
         </div>
         <div class="hero-actions">
-          <button id="catalog-import-button" class="button button-primary">Importar o actualizar todos</button>
-          <a href="#spanish-editions" class="button button-secondary" data-open-tab="spanish">Ediciones en español</a>
-          <a href="/api/catalog/export.csv" class="button button-secondary">Exportar CSV</a>
-          <button id="sync-button" class="button button-primary">Revisar semana actual</button>
-          <button id="refresh-button" class="button button-secondary">Actualizar vista</button>
-          <button id="system-info-button" class="button button-secondary">Recursos y servidor</button>
+          <button id="catalog-import-button" class="button button-primary has-tooltip" aria-label="Importar o actualizar todos" data-tooltip="Revisa Marvel Fandom y actualiza todas las listas históricas sin borrar tus marcas de colección.">Importar o actualizar todos</button>
+          <a href="#spanish-editions" class="button button-secondary has-tooltip" aria-label="Ediciones en español" data-open-tab="spanish" data-tooltip="Abre el catálogo de tomos publicados en español y sus relaciones con los issues USA.">Ediciones en español</a>
+          <a href="/api/catalog/export.csv" class="button button-secondary has-tooltip" aria-label="Exportar CSV" data-tooltip="Descarga el catálogo USA y el estado de tu colección en un archivo CSV.">Exportar CSV</a>
+          <button id="sync-button" class="button button-primary has-tooltip" aria-label="Revisar semana actual" data-tooltip="Busca novedades de la semana en Marvel Fandom y, a continuación, actualiza las fuentes españolas.">Revisar semana actual</button>
+          <button id="refresh-button" class="button button-secondary has-tooltip" aria-label="Actualizar vista" data-tooltip="Recarga lo que ves desde la base local. No vuelve a consultar las fuentes externas.">Actualizar vista</button>
+          <button id="system-info-button" class="button button-secondary has-tooltip" aria-label="Recursos y servidor" data-tooltip="Muestra CPU, memoria, disco, estado del servidor, automatización y Telegram.">Recursos y servidor</button>
           <div id="sync-status" class="sync-status">Listo</div>
           <div id="weekly-update-meta" class="weekly-update-meta"></div>
         </div>
@@ -43,10 +43,16 @@
             <p class="eyebrow">Catálogos de apariciones</p>
             <h2>Listas por personaje</h2>
             <p id="catalog-source-meta" class="muted"></p>
+            <details class="context-help">
+              <summary>¿Qué significa esta lista y su fecha de corte?</summary>
+              <p>Cada personaje tiene su propia lista de apariciones. Si un issue incluye varios personajes, aparece en cada lista correspondiente.</p>
+              <p>La fecha de corte es la del issue más reciente guardado para el personaje seleccionado. El botón de búsqueda vuelve a consultar su categoría de Marvel Fandom y agrega o actualiza fichas sin duplicar las que ya existen.</p>
+              <p>Los issues con fecha futura permanecen guardados internamente, pero no se muestran hasta su fecha de publicación.</p>
+            </details>
           </div>
           <div class="catalog-heading-actions">
             <div id="catalog-results-meta" class="muted"></div>
-            <button id="catalog-continue-button" class="button button-secondary">Continuar lista seleccionada</button>
+            <button id="catalog-continue-button" class="button button-secondary has-tooltip" aria-label="Buscar nuevos para este personaje" data-tooltip="Elegí un personaje para buscar nuevas fichas y actualizar las existentes sin crear duplicados.">Buscar nuevos para este personaje</button>
           </div>
         </div>
 
@@ -149,12 +155,17 @@
             <p class="muted">Lista de tomos y colecciones que querés conseguir, relacionados con los issues USA que recopilan.</p>
           </div>
           <div class="catalog-heading-actions">
-            <button id="panini-import-button" class="button button-secondary" type="button">Actualizar fuentes españolas</button>
-            <button id="spanish-add-button" class="button button-primary" type="button">Agregar edición</button>
+            <button id="panini-import-button" class="button button-secondary has-tooltip" type="button" aria-label="Actualizar fuentes españolas" data-tooltip="Consulta Panini y Fichas Universo Marvel, retoma pendientes y evita duplicados.">Actualizar fuentes españolas</button>
+            <button id="spanish-add-button" class="button button-primary has-tooltip" type="button" aria-label="Agregar edición" data-tooltip="Crea manualmente un tomo y lo relaciona con uno o más issues USA.">Agregar edición</button>
           </div>
         </div>
 
         <p id="panini-import-meta" class="muted"></p>
+        <details class="context-help spanish-context-help">
+          <summary>¿Qué representan estas ediciones?</summary>
+          <p>Son tomos españoles cuya sección «Contiene» pudo relacionarse con al menos un issue del catálogo USA. Una edición puede recopilar muchos issues y un mismo issue puede estar en más de un tomo.</p>
+          <p>«Quiero comprar» es el estado inicial de seguimiento; no significa que el tomo esté disponible hoy. Las fichas pendientes o todavía sin coincidencia USA se vuelven a revisar en las actualizaciones semanales.</p>
+        </details>
 
         <div id="spanish-stats-grid" class="catalog-stats-grid"></div>
 
@@ -181,9 +192,29 @@
           </label>
         </div>
 
+        <div class="catalog-pagination catalog-pagination--top" data-spanish-pagination>
+          <label class="catalog-page-size-control">Por página
+            <select data-spanish-page-size><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option></select>
+          </label>
+          <button class="button button-secondary" data-spanish-page-action="first">Primera</button>
+          <button class="button button-secondary" data-spanish-page-action="prev">Anterior</button>
+          <span class="muted" data-spanish-page-meta></span>
+          <button class="button button-secondary" data-spanish-page-action="next">Siguiente</button>
+          <button class="button button-secondary" data-spanish-page-action="last">Última</button>
+        </div>
         <div id="spanish-editions-list" class="spanish-editions-list"></div>
         <div id="spanish-empty" class="empty-state">
           Todavía no agregaste ediciones en español. Este apartado comienza vacío para que armes tu propia colección.
+        </div>
+        <div class="catalog-pagination" data-spanish-pagination>
+          <label class="catalog-page-size-control">Por página
+            <select data-spanish-page-size><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option></select>
+          </label>
+          <button class="button button-secondary" data-spanish-page-action="first">Primera</button>
+          <button class="button button-secondary" data-spanish-page-action="prev">Anterior</button>
+          <span class="muted" data-spanish-page-meta></span>
+          <button class="button button-secondary" data-spanish-page-action="next">Siguiente</button>
+          <button class="button button-secondary" data-spanish-page-action="last">Última</button>
         </div>
       </section>
 
@@ -240,6 +271,13 @@
             <div id="empty-state" class="empty-state hidden">
               No se aprobaron cómics en la última revisión o los filtros no tienen resultados.
             </div>
+            <div class="catalog-pagination tracking-pagination" data-approval-pagination="recent">
+              <button class="button button-secondary" data-approval-page-action="first">Primera</button>
+              <button class="button button-secondary" data-approval-page-action="prev">Anterior</button>
+              <span class="muted" data-approval-page-meta></span>
+              <button class="button button-secondary" data-approval-page-action="next">Siguiente</button>
+              <button class="button button-secondary" data-approval-page-action="last">Última</button>
+            </div>
 
             <section id="history-section" class="tracking-history hidden">
               <div class="section-heading tracking-history-heading">
@@ -251,7 +289,13 @@
               </div>
               <div id="history-comics-grid" class="comics-grid comics-grid--compact"></div>
               <div id="history-empty-state" class="empty-state hidden">Todavía no hay aprobados de semanas anteriores.</div>
-              <button id="history-more" type="button" class="button button-secondary history-more hidden">Mostrar 24 más</button>
+              <div class="catalog-pagination tracking-pagination" data-approval-pagination="history">
+                <button class="button button-secondary" data-approval-page-action="first">Primera</button>
+                <button class="button button-secondary" data-approval-page-action="prev">Anterior</button>
+                <span class="muted" data-approval-page-meta></span>
+                <button class="button button-secondary" data-approval-page-action="next">Siguiente</button>
+                <button class="button button-secondary" data-approval-page-action="last">Última</button>
+              </div>
             </section>
           </section>
         </div>
@@ -300,6 +344,13 @@
               </div>
             </form>
             <div id="characters-list" class="characters-list"></div>
+            <div class="catalog-pagination character-pagination">
+              <button class="button button-secondary" data-character-page-action="first">Primera</button>
+              <button class="button button-secondary" data-character-page-action="prev">Anterior</button>
+              <span class="muted" data-character-page-meta></span>
+              <button class="button button-secondary" data-character-page-action="next">Siguiente</button>
+              <button class="button button-secondary" data-character-page-action="last">Última</button>
+            </div>
           </section>
         </aside>
       </section>

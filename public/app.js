@@ -4,7 +4,7 @@ const state = {
   comics: [],
   historyComics: [],
   historyOpen: false,
-  historyVisibleCount: 24,
+  approvals: { pageSize: 20, recentPage: 0, historyPage: 0 },
   catalog: {
     stats: null,
     importStatus: {},
@@ -26,6 +26,9 @@ const state = {
   },
   spanishEditions: {
     items: [],
+    total: 0,
+    limit: 20,
+    offset: 0,
     stats: {},
     filterOptions: { publishers: [], characters: [] },
     filters: { query: "", status: "", publisher: "", character: "" },
@@ -40,6 +43,8 @@ const state = {
   },
   editingCharacterId: null,
   suggestionQuery: "",
+  suggestionPage: 0,
+  suggestionPageSize: 20,
   editingCatalogIssueId: null,
   systemMetricsTimer: null
 };
@@ -57,7 +62,8 @@ const elements = {
   historyComicsGrid: document.querySelector("#history-comics-grid"),
   historyResultsMeta: document.querySelector("#history-results-meta"),
   historyEmptyState: document.querySelector("#history-empty-state"),
-  historyMore: document.querySelector("#history-more"),
+  approvalPageGroups: document.querySelectorAll("[data-approval-pagination]"),
+  approvalPageButtons: document.querySelectorAll("[data-approval-page-action]"),
   pendingList: document.querySelector("#pending-list"),
   charactersList: document.querySelector("#characters-list"),
   emptyState: document.querySelector("#empty-state"),
@@ -137,6 +143,11 @@ const elements = {
   spanishCharacterFilter: document.querySelector("#spanish-character-filter"),
   spanishEditionsList: document.querySelector("#spanish-editions-list"),
   spanishEmpty: document.querySelector("#spanish-empty"),
+  spanishPageButtons: document.querySelectorAll("[data-spanish-page-action]"),
+  spanishPageMetas: document.querySelectorAll("[data-spanish-page-meta]"),
+  spanishPageSizes: document.querySelectorAll("[data-spanish-page-size]"),
+  characterPageButtons: document.querySelectorAll("[data-character-page-action]"),
+  characterPageMeta: document.querySelector("[data-character-page-meta]"),
   spanishEditionModal: document.querySelector("#spanish-edition-modal"),
   spanishEditionForm: document.querySelector("#spanish-edition-form"),
   spanishEditionClose: document.querySelector("#spanish-edition-close"),
@@ -485,7 +496,7 @@ function renderCatalogStats() {
   const cutoff = character?.lastComicDate || stats.lastComicDate;
   elements.catalogSourceMeta.textContent = [
     character ? `${character.displayName} · ${character.reality}` : universeLabels[state.catalog.filters.universeGroup],
-    `Último cómic de la lista: ${cutoff ? formatDate(cutoff) : "sin fecha de corte"}`,
+    `Fecha de corte (issue más reciente guardado): ${cutoff ? formatDate(cutoff) : "sin fecha de corte"}`,
     `Última sincronización: ${formatDateTime(character?.lastSyncAt || stats.lastSourceSyncAt)}`,
     catalogImportLabel(status)
   ].join(". ");
@@ -493,10 +504,14 @@ function renderCatalogStats() {
   elements.catalogContinueButton.disabled = Boolean(status.running || !character);
   elements.catalogImportButton.textContent = status.running ? "Importando catálogos..." : "Importar o actualizar todos";
   elements.catalogContinueButton.textContent = !character
-    ? "Elegí un personaje para continuar su lista"
+    ? "Elegí un personaje para buscar novedades"
     : cutoff
-    ? `Continuar desde ${formatDate(cutoff)}`
-    : "Importar lista seleccionada";
+    ? `Buscar posteriores a ${formatDate(cutoff)}`
+    : "Buscar issues de este personaje";
+  elements.catalogContinueButton.dataset.tooltip = character
+    ? `Revisa la categoría de ${character.displayName} en Marvel Fandom, actualiza fichas conocidas y agrega nuevas sin duplicarlas.`
+    : "Elegí un personaje para buscar nuevas fichas y actualizar las existentes sin crear duplicados.";
+  elements.catalogContinueButton.setAttribute("aria-label", elements.catalogContinueButton.textContent);
 }
 
 function appearanceDetailLabel(value) {
@@ -660,7 +675,17 @@ function renderSpanishFilterOptions() {
 }
 
 function renderSpanishEditions() {
-  const { items, stats } = state.spanishEditions;
+  const { items, stats, total, limit, offset } = state.spanishEditions;
+  const first = total ? offset + 1 : 0;
+  const last = Math.min(total, offset + items.length);
+  const page = Math.floor(offset / limit) + 1;
+  const pages = Math.max(1, Math.ceil(total / limit));
+  for (const meta of elements.spanishPageMetas) meta.textContent = `${first}-${last} de ${total} / página ${page} de ${pages}`;
+  for (const select of elements.spanishPageSizes) select.value = String(limit);
+  for (const button of elements.spanishPageButtons) {
+    const action = button.dataset.spanishPageAction;
+    button.disabled = action === "first" || action === "prev" ? offset <= 0 : offset + limit >= total;
+  }
   const cards = [
     ["Ediciones", stats.totalCount || 0],
     ["Quiero comprar", stats.wantedCount || 0],
@@ -720,14 +745,19 @@ function renderSpanishEditions() {
             ${edition.preferredIssueCount ? `<span class="tag tag-preferred">Prioritario para ${edition.preferredIssueCount} issue(s)</span>` : ""}
             ${edition.alternativeIssueCount ? `<span class="tag tag-alternative">Alternativa para ${edition.alternativeIssueCount} issue(s)</span>` : ""}
           </div>` : ""}
-          <div class="tags">${edition.characters.map((character) => `<span class="tag">${escapeHtml(character)}</span>`).join("")}</div>
-          <div class="spanish-linked-issues">
-            <strong>${edition.issueCount} issue(s) USA</strong>
-            ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a class="${issue.isPreferredSpanishEdition ? "is-preferred" : "is-alternative"}" href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer" title="${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? "Edición prioritaria por cantidad de páginas" : "También incluido en una edición prioritaria más extensa") : ""}">${escapeHtml(issue.title)}${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? " ★" : " · alternativa") : ""}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
-          </div>
-          ${edition.containsRaw ? `<p class="muted"><strong>Contiene:</strong> ${escapeHtml(edition.containsRaw)}</p>` : ""}
-          ${edition.notes ? `<p>${escapeHtml(edition.notes)}</p>` : ""}
-          ${edition.referenceUrl ? `<a href="${escapeHtml(edition.referenceUrl)}" target="_blank" rel="noreferrer">Abrir referencia</a>` : ""}
+          <details class="spanish-edition-details">
+            <summary>Ver contenido y relaciones · ${edition.issueCount} issue(s) USA</summary>
+            <div class="spanish-edition-details__body">
+              <div class="tags">${edition.characters.map((character) => `<span class="tag">${escapeHtml(character)}</span>`).join("")}</div>
+              <div class="spanish-linked-issues">
+                <strong>${edition.issueCount} issue(s) USA relacionados</strong>
+                ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a class="${issue.isPreferredSpanishEdition ? "is-preferred" : "is-alternative"}" href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer" title="${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? "Edición prioritaria por cantidad de páginas" : "También incluido en una edición prioritaria más extensa") : ""}">${escapeHtml(issue.title)}${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? " ★" : " · alternativa") : ""}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
+              </div>
+              ${edition.containsRaw ? `<p class="muted"><strong>Contiene:</strong> ${escapeHtml(edition.containsRaw)}</p>` : ""}
+              ${edition.notes ? `<p>${escapeHtml(edition.notes)}</p>` : ""}
+              ${edition.referenceUrl ? `<a href="${escapeHtml(edition.referenceUrl)}" target="_blank" rel="noreferrer">Abrir referencia</a>` : ""}
+            </div>
+          </details>
         </div>
         <div class="spanish-edition-actions">
           <button class="button button-secondary" data-spanish-action="edit" type="button">Editar</button>
@@ -757,9 +787,16 @@ function renderSpanishEditions() {
 }
 
 async function loadSpanishEditions() {
-  const params = new URLSearchParams(state.spanishEditions.filters);
+  const params = new URLSearchParams({
+    ...state.spanishEditions.filters,
+    limit: String(state.spanishEditions.limit),
+    offset: String(state.spanishEditions.offset)
+  });
   const payload = await api(`/api/spanish-editions?${params.toString()}`);
   state.spanishEditions.items = payload.items || [];
+  state.spanishEditions.total = Number(payload.total || 0);
+  state.spanishEditions.limit = Number(payload.limit || 20);
+  state.spanishEditions.offset = Number(payload.offset || 0);
   state.spanishEditions.stats = payload.stats || {};
   state.spanishEditions.filterOptions = payload.filters || { publishers: [], characters: [] };
   renderSpanishEditions();
@@ -959,14 +996,34 @@ function renderComicGroups(container, comics) {
 }
 
 function renderComics() {
-  const volumeCount = renderComicGroups(elements.comicsGrid, state.comics);
+  const total = state.comics.length;
+  const pages = Math.max(1, Math.ceil(total / state.approvals.pageSize));
+  state.approvals.recentPage = Math.min(state.approvals.recentPage, pages - 1);
+  const start = state.approvals.recentPage * state.approvals.pageSize;
+  const visible = state.comics.slice(start, start + state.approvals.pageSize);
+  const volumeCount = renderComicGroups(elements.comicsGrid, visible);
   const weekKey = state.comics[0]?.weekKey
     || (state.dashboard?.lastSync?.status === "completed" ? state.dashboard.lastSync.weekKey : "");
-  elements.resultsMeta.textContent = `${state.comics.length} resultados en ${volumeCount} volúmenes`;
+  elements.resultsMeta.textContent = `${total} resultados · ${volumeCount} volúmenes en esta página`;
   elements.recentApprovalsMeta.textContent = weekKey
     ? `Revisión ${weekKey}. Se muestran únicamente los issues aprobados en esa revisión.`
     : "Todavía no hay una revisión semanal completada.";
   elements.emptyState.classList.toggle("hidden", state.comics.length > 0);
+  renderApprovalPagination("recent", total, state.approvals.recentPage);
+}
+
+function renderApprovalPagination(scope, total, page) {
+  const pages = Math.max(1, Math.ceil(total / state.approvals.pageSize));
+  const group = [...elements.approvalPageGroups].find((item) => item.dataset.approvalPagination === scope);
+  if (!group) return;
+  group.classList.toggle("hidden", total <= state.approvals.pageSize);
+  const first = total ? page * state.approvals.pageSize + 1 : 0;
+  const last = Math.min(total, first + state.approvals.pageSize - 1);
+  group.querySelector("[data-approval-page-meta]").textContent = `${first}-${last} de ${total} · página ${page + 1} de ${pages}`;
+  for (const button of group.querySelectorAll("[data-approval-page-action]")) {
+    const action = button.dataset.approvalPageAction;
+    button.disabled = action === "first" || action === "prev" ? page <= 0 : page >= pages - 1;
+  }
 }
 
 function renderHistoryComics() {
@@ -980,11 +1037,14 @@ function renderHistoryComics() {
     if (a.weekNumber !== b.weekNumber) return Number(b.weekNumber || 0) - Number(a.weekNumber || 0);
     return String(b.releaseDate || "").localeCompare(String(a.releaseDate || ""));
   });
-  const visible = sorted.slice(0, state.historyVisibleCount);
+  const pages = Math.max(1, Math.ceil(sorted.length / state.approvals.pageSize));
+  state.approvals.historyPage = Math.min(state.approvals.historyPage, pages - 1);
+  const start = state.approvals.historyPage * state.approvals.pageSize;
+  const visible = sorted.slice(start, start + state.approvals.pageSize);
   const volumeCount = renderComicGroups(elements.historyComicsGrid, visible);
-  elements.historyResultsMeta.textContent = `${visible.length} de ${sorted.length} aprobados · ${volumeCount} volúmenes visibles`;
+  elements.historyResultsMeta.textContent = `${sorted.length} aprobados · ${volumeCount} volúmenes en esta página`;
   elements.historyEmptyState.classList.toggle("hidden", sorted.length > 0);
-  elements.historyMore.classList.toggle("hidden", visible.length >= sorted.length);
+  renderApprovalPagination("history", sorted.length, state.approvals.historyPage);
 }
 
 function renderPending() {
@@ -1159,9 +1219,17 @@ function renderCharacters() {
     character.reality,
     ...character.aliases
   ].join(" ")).includes(query));
-  const visible = filtered.slice(0, 50);
+  const pages = Math.max(1, Math.ceil(filtered.length / state.suggestionPageSize));
+  state.suggestionPage = Math.min(state.suggestionPage, pages - 1);
+  const start = state.suggestionPage * state.suggestionPageSize;
+  const visible = filtered.slice(start, start + state.suggestionPageSize);
   const enabledCount = trackedCharacters.filter((character) => character.active).length;
-  elements.suggestionCharactersSummary.textContent = `${enabledCount} de ${trackedCharacters.length} personajes del catálogo participan en las sugerencias. ${filtered.length > visible.length ? `Mostrando los primeros ${visible.length} resultados.` : ""}`;
+  elements.suggestionCharactersSummary.textContent = `${enabledCount} de ${trackedCharacters.length} personajes del catálogo participan en las sugerencias. Mostrando ${filtered.length ? start + 1 : 0}-${Math.min(filtered.length, start + visible.length)} de ${filtered.length}.`;
+  elements.characterPageMeta.textContent = `Página ${state.suggestionPage + 1} de ${pages}`;
+  for (const button of elements.characterPageButtons) {
+    const action = button.dataset.characterPageAction;
+    button.disabled = action === "first" || action === "prev" ? state.suggestionPage <= 0 : state.suggestionPage >= pages - 1;
+  }
 
   elements.charactersList.innerHTML = visible.map((character) => `
     <article class="character-item">
@@ -1279,7 +1347,7 @@ async function loadComics() {
 
 async function toggleApprovalHistory() {
   state.historyOpen = !state.historyOpen;
-  state.historyVisibleCount = 24;
+  state.approvals.historyPage = 0;
   await loadComics();
 }
 
@@ -1414,6 +1482,8 @@ function wireFilters() {
     state.filters.character = elements.characterInput.value.trim();
     state.filters.from = elements.fromInput.value;
     state.filters.to = elements.toInput.value;
+    state.approvals.recentPage = 0;
+    state.approvals.historyPage = 0;
     await loadComics();
   });
 
@@ -1474,6 +1544,7 @@ function wireSpanishEditionEvents() {
     state.spanishEditions.filters.status = elements.spanishStatusFilter.value;
     state.spanishEditions.filters.publisher = elements.spanishPublisherFilter.value;
     state.spanishEditions.filters.character = elements.spanishCharacterFilter.value;
+    state.spanishEditions.offset = 0;
     await loadSpanishEditions();
   });
   for (const input of [
@@ -1484,6 +1555,27 @@ function wireSpanishEditionEvents() {
   ]) {
     input.addEventListener("input", applyFilters);
     input.addEventListener("change", applyFilters);
+  }
+
+  for (const select of elements.spanishPageSizes) {
+    select.addEventListener("change", async () => {
+      state.spanishEditions.limit = Number(select.value) || 20;
+      state.spanishEditions.offset = 0;
+      await loadSpanishEditions();
+    });
+  }
+
+  for (const button of elements.spanishPageButtons) {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.spanishPageAction;
+      const spanish = state.spanishEditions;
+      if (action === "first") spanish.offset = 0;
+      if (action === "prev") spanish.offset = Math.max(0, spanish.offset - spanish.limit);
+      if (action === "next") spanish.offset = Math.min(Math.max(0, spanish.total - 1), spanish.offset + spanish.limit);
+      if (action === "last") spanish.offset = Math.max(0, (Math.ceil(spanish.total / spanish.limit) - 1) * spanish.limit);
+      await loadSpanishEditions();
+      elements.spanishEditionsList.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   elements.spanishAddButton.addEventListener("click", () => openSpanishEditionModal());
@@ -1537,10 +1629,22 @@ function wireAppTabs() {
 function wireEvents() {
   elements.refreshButton.addEventListener("click", reloadAll);
   elements.historyToggle.addEventListener("click", toggleApprovalHistory);
-  elements.historyMore.addEventListener("click", () => {
-    state.historyVisibleCount += 24;
-    renderHistoryComics();
-  });
+  for (const button of elements.approvalPageButtons) {
+    button.addEventListener("click", () => {
+      const group = button.closest("[data-approval-pagination]");
+      const scope = group?.dataset.approvalPagination;
+      const stateKey = scope === "history" ? "historyPage" : "recentPage";
+      const total = scope === "history" ? state.historyComics.length : state.comics.length;
+      const pages = Math.max(1, Math.ceil(total / state.approvals.pageSize));
+      const action = button.dataset.approvalPageAction;
+      if (action === "first") state.approvals[stateKey] = 0;
+      if (action === "prev") state.approvals[stateKey] = Math.max(0, state.approvals[stateKey] - 1);
+      if (action === "next") state.approvals[stateKey] = Math.min(pages - 1, state.approvals[stateKey] + 1);
+      if (action === "last") state.approvals[stateKey] = pages - 1;
+      if (scope === "history") renderHistoryComics(); else renderComics();
+      group?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }
   elements.syncButton.addEventListener("click", triggerSync);
   elements.paniniImportButton.addEventListener("click", triggerPaniniImport);
   elements.catalogImportButton.addEventListener("click", triggerCatalogImport);
@@ -1599,8 +1703,26 @@ function wireEvents() {
   elements.characterReset.addEventListener("click", resetCharacterForm);
   elements.suggestionCharacterQuery.addEventListener("input", () => {
     state.suggestionQuery = elements.suggestionCharacterQuery.value;
+    state.suggestionPage = 0;
     renderCharacters();
   });
+  for (const button of elements.characterPageButtons) {
+    button.addEventListener("click", () => {
+      const trackedCharacters = window.__trackedCharacters || [];
+      const query = normalizeForSearch(state.suggestionQuery);
+      const total = trackedCharacters.filter((character) => !query || normalizeForSearch([
+        character.displayName, character.fandomEntity, character.reality, ...character.aliases
+      ].join(" ")).includes(query)).length;
+      const pages = Math.max(1, Math.ceil(total / state.suggestionPageSize));
+      const action = button.dataset.characterPageAction;
+      if (action === "first") state.suggestionPage = 0;
+      if (action === "prev") state.suggestionPage = Math.max(0, state.suggestionPage - 1);
+      if (action === "next") state.suggestionPage = Math.min(pages - 1, state.suggestionPage + 1);
+      if (action === "last") state.suggestionPage = pages - 1;
+      renderCharacters();
+      elements.charactersList.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
   elements.characterForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 

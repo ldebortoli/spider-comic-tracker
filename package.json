@@ -11,6 +11,7 @@
     "server:status": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/server-status.ps1",
     "import:catalog": "node scripts/import-spiderman-catalog.js",
     "repair:covers": "node scripts/repair-catalog-covers.js",
+    "repair:spanish-covers": "node scripts/repair-spanish-covers.js",
     "repair:dates": "node scripts/repair-catalog-dates.js",
     "repair:appearances": "node scripts/repair-appearance-details.js",
     "test": "node tests/marvel.test.js && node tests/panini.test.js && node tests/universo-marvel.test.js && node tests/catalog.test.js && node tests/service.test.js && node tests/runtime.test.js"

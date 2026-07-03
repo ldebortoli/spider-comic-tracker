@@ -832,11 +832,11 @@ class ComicDatabase {
       `),
       catalogCharactersAll: this.db.prepare(`
         SELECT c.*,
-               COUNT(ci.issue_id) AS issue_count,
-               SUM(CASE WHEN i.owned = 1 THEN 1 ELSE 0 END) AS owned_count,
-               SUM(CASE WHEN ci.appearance_type = 'direct' THEN 1 ELSE 0 END) AS direct_count,
-               SUM(CASE WHEN ci.appearance_type = 'minor' THEN 1 ELSE 0 END) AS minor_count,
-               MAX(i.release_date) AS computed_last_comic_date
+               COUNT(CASE WHEN i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime') THEN ci.issue_id END) AS issue_count,
+               SUM(CASE WHEN i.owned = 1 AND (i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime')) THEN 1 ELSE 0 END) AS owned_count,
+               SUM(CASE WHEN ci.appearance_type = 'direct' AND (i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime')) THEN 1 ELSE 0 END) AS direct_count,
+               SUM(CASE WHEN ci.appearance_type = 'minor' AND (i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime')) THEN 1 ELSE 0 END) AS minor_count,
+               MAX(CASE WHEN i.release_date <= date('now', 'localtime') THEN i.release_date END) AS computed_last_comic_date
         FROM catalog_characters c
         LEFT JOIN catalog_character_issues ci ON ci.character_id = c.id
         LEFT JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
@@ -870,6 +870,7 @@ class ComicDatabase {
               FROM catalog_character_issues ci
               JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
               WHERE ci.character_id = catalog_characters.id
+                AND (i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime'))
             ),
             last_sync_at = ?,
             last_sync_status = ?,
@@ -1405,7 +1406,10 @@ class ComicDatabase {
   }
 
   listIncludedComics(filters = {}) {
-    const conditions = ["c.decision IN ('auto_added', 'manual_added')"];
+    const conditions = [
+      "c.decision IN ('auto_added', 'manual_added')",
+      "(c.release_date IS NULL OR trim(c.release_date) = '' OR c.release_date <= date('now', 'localtime'))"
+    ];
     const params = [];
 
     if (filters.scope === "latest-week") {
@@ -1696,6 +1700,7 @@ class ComicDatabase {
 
   getCatalogStats(characterSlug = "", universeGroup = "main") {
     const scope = this.getCatalogScope(characterSlug, universeGroup);
+    scope.conditions.push("(i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime'))");
     const row = this.db.prepare(`
       SELECT
         COUNT(DISTINCT i.id) AS total_count,
@@ -1734,6 +1739,7 @@ class ComicDatabase {
     const scope = this.getCatalogScope(filters.character || "", filters.universeGroup || "main");
     const conditions = [...scope.conditions];
     const params = [...scope.params];
+    conditions.push("(i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime'))");
     const limit = Math.max(1, Math.min(200, Number(filters.limit) || 60));
     const offset = Math.max(0, Number(filters.offset) || 0);
 
@@ -1919,7 +1925,7 @@ class ComicDatabase {
     const publisher = normalizeText(filters.publisher || "");
     const character = normalizeText(filters.character || "");
     const status = filters.status === "wanted" || filters.status === "owned" ? filters.status : "";
-    const items = allItems.filter((edition) => {
+    const filteredItems = allItems.filter((edition) => {
       if (status && edition.purchaseStatus !== status) return false;
       if (publisher && normalizeText(edition.publisher) !== publisher) return false;
       if (character && !edition.characters.some((name) => normalizeText(name) === character)) return false;
@@ -1937,6 +1943,9 @@ class ComicDatabase {
       ].join(" "));
       return haystack.includes(query);
     });
+    const limit = Math.max(1, Math.min(10_000, Number(filters.limit) || 20));
+    const offset = Math.max(0, Number(filters.offset) || 0);
+    const items = filteredItems.slice(offset, offset + limit);
     const publishers = uniqueStrings(allItems.map((edition) => edition.publisher).filter(Boolean))
       .sort((a, b) => a.localeCompare(b, "es"));
     const paniniStats = this.db.prepare(`
@@ -1956,6 +1965,9 @@ class ComicDatabase {
 
     return {
       items,
+      total: filteredItems.length,
+      limit,
+      offset,
       stats: {
         totalCount: allItems.length,
         wantedCount: allItems.filter((edition) => edition.purchaseStatus === "wanted").length,
@@ -1975,7 +1987,22 @@ class ComicDatabase {
   }
 
   getSpanishEdition(id) {
-    return this.listSpanishEditions().items.find((edition) => edition.id === Number(id)) || null;
+    return this.listSpanishEditions({ limit: 10_000 }).items.find((edition) => edition.id === Number(id)) || null;
+  }
+
+  listSpanishEditionsMissingCovers() {
+    return this.db.prepare(`
+      SELECT id, title, source, source_key AS sourceKey, reference_url AS referenceUrl
+      FROM spanish_editions
+      WHERE trim(COALESCE(cover_image_url, '')) = '' AND trim(COALESCE(reference_url, '')) != ''
+      ORDER BY source, title COLLATE NOCASE
+    `).all();
+  }
+
+  updateSpanishEditionCover(id, coverImageUrl) {
+    return Boolean(this.db.prepare(`
+      UPDATE spanish_editions SET cover_image_url = ?, updated_at = ? WHERE id = ?
+    `).run(String(coverImageUrl || ""), nowIso(), Number(id)).changes);
   }
 
   saveSpanishEdition(id, payload = {}) {

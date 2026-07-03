@@ -33,4 +33,14 @@ assert.equal(product.publicationDate, "2017-06-01");
 assert.equal(product.containsRaw, "Spider-Man Vol.2 #13; Spider-Gwen Vol.2 #17");
 assert.match(product.coverImageUrl, /portadas\/spidmp113\.jpg/);
 
+const realCoverMarkup = parseUniversoMarvelProduct(`
+  <title>Marvel Gold: Spiderman - Panini</title>
+  <!-- Portada y Datos-->
+  <img src="../imagen/logopanini.jpg">
+  <a onClick="MM_openBrWindow('portadas/marvelgoldsp.jpg','','resizable=no')">
+    <img width=150 src="portadas/marvelgoldsp.jpg">
+  </a>
+`, "https://fichas.universomarvel.com/esp/marvelgoldsp.html");
+assert.equal(realCoverMarkup.coverImageUrl, "https://fichas.universomarvel.com/esp/portadas/marvelgoldsp.jpg");
+
 console.log("ok - parsea directorio, índices y fichas de Universo Marvel");
