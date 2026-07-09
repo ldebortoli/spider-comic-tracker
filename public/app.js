@@ -1622,7 +1622,7 @@ async function confirmRefreshView() {
 async function triggerCatalogImport() {
   const confirmed = await askConfirmation({
     title: "Importar o actualizar catálogos",
-    message: "Se consultará Marvel Fandom para actualizar las listas históricas de personajes sin borrar tus marcas de colección. Puede tardar varios minutos. ¿Continuar?"
+    message: "Se va a consultar Marvel Fandom para descubrir y actualizar apariciones históricas de todos los personajes del catálogo. No borra tus marcas de colección, pero puede hacer muchas consultas y tardar varios minutos. ¿Continuar?"
   });
   if (!confirmed) return;
 
@@ -1647,6 +1647,12 @@ async function triggerCatalogContinue() {
   if (!character) {
     return;
   }
+
+  const confirmed = await askConfirmation({
+    title: `Continuar ${character.displayName}`,
+    message: `Se va a consultar Marvel Fandom para buscar nuevas fichas de ${character.displayName} desde ${character.lastComicDate ? formatDate(character.lastComicDate) : "el inicio"}. Puede tardar varios minutos según la cantidad de apariciones. ¿Continuar?`
+  });
+  if (!confirmed) return;
 
   elements.catalogContinueButton.disabled = true;
   setSyncStatus(`Continuando ${character.displayName} desde ${character.lastComicDate ? formatDate(character.lastComicDate) : "el inicio"}...`);
@@ -1680,6 +1686,12 @@ async function pollCatalogImport() {
 }
 
 async function triggerSync() {
+  const confirmed = await askConfirmation({
+    title: "Revisar semana actual",
+    message: "Se van a revisar las novedades USA de la semana y después las fuentes españolas vinculadas. Puede consultar Marvel Fandom, Panini/Fichas Universo Marvel y tardar varios minutos. ¿Continuar?"
+  });
+  if (!confirmed) return;
+
   elements.syncButton.disabled = true;
   setSyncStatus("Revisando semana actual...");
 
@@ -1719,6 +1731,12 @@ async function pollUntilFinished() {
 }
 
 async function triggerPaniniImport() {
+  const confirmed = await askConfirmation({
+    title: "Actualizar fuentes españolas",
+    message: "Se van a consultar fuentes de ediciones en español, relacionar tomos con issues USA y retomar pendientes sin duplicar. Puede tardar varios minutos. ¿Continuar?"
+  });
+  if (!confirmed) return;
+
   elements.paniniImportButton.disabled = true;
   setSyncStatus("Iniciando revisión de Panini...");
   try {
