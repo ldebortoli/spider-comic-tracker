@@ -1609,6 +1609,16 @@ async function reloadAll() {
   setSyncStatus("Vista actualizada");
 }
 
+async function confirmRefreshView() {
+  const confirmed = await askConfirmation({
+    title: "Actualizar vista",
+    message: "Se recargarán los datos visibles desde la base local. No se consultarán fuentes externas. ¿Continuar?"
+  });
+  if (!confirmed) return;
+
+  await reloadAll();
+}
+
 async function triggerCatalogImport() {
   const confirmed = await askConfirmation({
     title: "Importar o actualizar catálogos",
@@ -1886,7 +1896,7 @@ function wireEvents() {
     dialog.addEventListener("close", updateModalScrollLock);
     wireDialogDismissal(dialog);
   }
-  elements.refreshButton.addEventListener("click", reloadAll);
+  elements.refreshButton.addEventListener("click", confirmRefreshView);
   elements.historyToggle.addEventListener("click", toggleApprovalHistory);
   for (const button of elements.approvalPageButtons) {
     button.addEventListener("click", () => {
