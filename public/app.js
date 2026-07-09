@@ -342,7 +342,17 @@ function openDialog(dialog) {
 }
 
 function closeDialog(dialog) {
-  dialog.close();
+  if (dialog?.open) {
+    dialog.close();
+  }
+}
+
+function wireDialogDismissal(dialog) {
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) {
+      closeDialog(dialog);
+    }
+  });
 }
 
 function formatBackupStatus(status) {
@@ -1810,9 +1820,6 @@ function wireSpanishEditionEvents() {
   elements.spanishAddButton.addEventListener("click", () => openSpanishEditionModal());
   elements.spanishEditionClose.addEventListener("click", () => closeDialog(elements.spanishEditionModal));
   elements.spanishEditionCancel.addEventListener("click", () => closeDialog(elements.spanishEditionModal));
-  elements.spanishEditionModal.addEventListener("click", (event) => {
-    if (event.target === elements.spanishEditionModal) closeDialog(elements.spanishEditionModal);
-  });
   elements.spanishEditionForm.addEventListener("submit", saveSpanishEdition);
   elements.spanishIssueSearch.addEventListener("input", debounce(searchSpanishIssues, 300));
 }
@@ -1858,6 +1865,7 @@ function wireAppTabs() {
 function wireEvents() {
   for (const dialog of document.querySelectorAll("dialog")) {
     dialog.addEventListener("close", updateModalScrollLock);
+    wireDialogDismissal(dialog);
   }
   elements.refreshButton.addEventListener("click", reloadAll);
   elements.historyToggle.addEventListener("click", toggleApprovalHistory);
@@ -1885,11 +1893,6 @@ function wireEvents() {
   elements.settingsButton.addEventListener("click", openSettingsModal);
   elements.systemClose.addEventListener("click", closeSystemModal);
   elements.settingsClose.addEventListener("click", closeSettingsModal);
-  elements.settingsModal.addEventListener("click", (event) => {
-    if (event.target === elements.settingsModal) {
-      closeSettingsModal();
-    }
-  });
   elements.telegramConfigForm.addEventListener("submit", saveTelegramConfig);
   elements.telegramConfigRefresh.addEventListener("click", loadTelegramConfig);
   elements.telegramClearToken.addEventListener("change", () => {
@@ -1919,18 +1922,8 @@ function wireEvents() {
   elements.quarterlyRefreshSave.addEventListener("click", saveQuarterlyRefreshSettings);
   elements.quarterlyRefreshButton.addEventListener("click", triggerQuarterlyRefresh);
   elements.modalClose.addEventListener("click", () => closeDialog(elements.modal));
-  elements.modal.addEventListener("click", (event) => {
-    if (event.target === elements.modal) {
-      closeDialog(elements.modal);
-    }
-  });
   elements.collectionClose.addEventListener("click", () => closeDialog(elements.collectionModal));
   elements.collectionCancel.addEventListener("click", () => closeDialog(elements.collectionModal));
-  elements.collectionModal.addEventListener("click", (event) => {
-    if (event.target === elements.collectionModal) {
-      closeDialog(elements.collectionModal);
-    }
-  });
   elements.collectionForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const issue = state.catalog.items.find((item) => item.id === state.editingCatalogIssueId);
