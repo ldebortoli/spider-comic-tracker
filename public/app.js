@@ -100,7 +100,16 @@ const elements = {
   automationSave: document.querySelector("#automation-save"),
   automationStatus: document.querySelector("#automation-status"),
   quarterlyRefreshButton: document.querySelector("#quarterly-refresh-button"),
+  quarterlyRefreshEnabled: document.querySelector("#quarterly-refresh-enabled"),
+  quarterlyRefreshDate: document.querySelector("#quarterly-refresh-date"),
+  quarterlyRefreshTime: document.querySelector("#quarterly-refresh-time"),
+  quarterlyRefreshSave: document.querySelector("#quarterly-refresh-save"),
   quarterlyRefreshStatus: document.querySelector("#quarterly-refresh-status"),
+  confirmModal: document.querySelector("#confirm-modal"),
+  confirmTitle: document.querySelector("#confirm-title"),
+  confirmMessage: document.querySelector("#confirm-message"),
+  confirmYes: document.querySelector("#confirm-yes"),
+  confirmNo: document.querySelector("#confirm-no"),
   modal: document.querySelector("#cover-modal"),
   modalTitle: document.querySelector("#modal-title"),
   modalDate: document.querySelector("#modal-date"),
@@ -252,6 +261,32 @@ function formatDateTime(isoDate) {
     dateStyle: "medium",
     timeStyle: "short"
   });
+}
+
+function localDateTimeParts(isoDate) {
+  if (!isoDate) {
+    return { date: "", time: "" };
+  }
+
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return { date: "", time: "" };
+  }
+
+  const pad = (value) => String(value).padStart(2, "0");
+  return {
+    date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    time: `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  };
+}
+
+function isoFromLocalDateTime(dateValue, timeValue) {
+  if (!dateValue || !timeValue) {
+    return "";
+  }
+
+  const date = new Date(`${dateValue}T${timeValue}:00`);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
 function formatBytes(bytes) {
@@ -408,12 +443,19 @@ function renderStats() {
 function renderQuarterlyRefreshStatus() {
   const status = state.dashboard?.quarterlyRefresh || {};
   elements.quarterlyRefreshButton.disabled = Boolean(status.running || state.dashboard?.config?.catalogImportRunning);
+  elements.quarterlyRefreshSave.disabled = Boolean(status.running || state.dashboard?.config?.catalogImportRunning);
+  elements.quarterlyRefreshEnabled.checked = status.enabled !== false;
+  const nextParts = localDateTimeParts(status.nextRefreshAt);
+  const minimumParts = localDateTimeParts(status.minimumNextRefreshAt);
+  elements.quarterlyRefreshDate.value = nextParts.date;
+  elements.quarterlyRefreshTime.value = nextParts.time || "12:00";
+  elements.quarterlyRefreshDate.min = minimumParts.date;
   if (status.running) {
     elements.quarterlyRefreshStatus.textContent = "Revisión completa en curso. Puede tardar varios minutos.";
   } else if (status.status === "failed") {
     elements.quarterlyRefreshStatus.textContent = `La última revisión completa falló: ${status.errorMessage || "error sin detalle"}`;
   } else if (status.lastRefreshAt) {
-    elements.quarterlyRefreshStatus.textContent = `Última revisión: ${formatDateTime(status.lastRefreshAt)}. Próxima: ${formatDateTime(status.nextRefreshAt)}.`;
+    elements.quarterlyRefreshStatus.textContent = `Última revisión: ${formatDateTime(status.lastRefreshAt)}. Próxima: ${formatDateTime(status.nextRefreshAt)}. Mínima permitida: ${formatDateTime(status.minimumNextRefreshAt)}.`;
   } else {
     elements.quarterlyRefreshStatus.textContent = "La revisión trimestral todavía no tiene una fecha base.";
   }
@@ -1230,8 +1272,72 @@ async function saveAutomationSettings() {
   }
 }
 
+async function saveQuarterlyRefreshSettings() {
+  const nextRefreshAt = isoFromLocalDateTime(elements.quarterlyRefreshDate.value, elements.quarterlyRefreshTime.value);
+  elements.quarterlyRefreshSave.disabled = true;
+  try {
+    const status = await api("/api/catalog/refresh-schedule", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: elements.quarterlyRefreshEnabled.checked,
+        nextRefreshAt
+      })
+    });
+    state.dashboard.quarterlyRefresh = status;
+    renderQuarterlyRefreshStatus();
+    await loadDashboard();
+  } catch (error) {
+    elements.quarterlyRefreshStatus.textContent = error.message;
+  } finally {
+    elements.quarterlyRefreshSave.disabled = false;
+  }
+}
+
+async function loadQuarterlyRefreshSettings() {
+  const status = await api("/api/catalog/refresh-schedule");
+  state.dashboard = state.dashboard || { config: {} };
+  state.dashboard.quarterlyRefresh = status;
+  renderQuarterlyRefreshStatus();
+  return status;
+}
+
+function askConfirmation({ title, message }) {
+  return new Promise((resolve) => {
+    const cleanup = (answer) => {
+      elements.confirmYes.removeEventListener("click", onYes);
+      elements.confirmNo.removeEventListener("click", onNo);
+      elements.confirmModal.removeEventListener("cancel", onCancel);
+      elements.confirmModal.removeEventListener("close", onClose);
+      if (elements.confirmModal.open) {
+        closeDialog(elements.confirmModal);
+      }
+      resolve(answer);
+    };
+    const onYes = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    const onCancel = (event) => {
+      event.preventDefault();
+      cleanup(false);
+    };
+    const onClose = () => cleanup(false);
+
+    elements.confirmTitle.textContent = title;
+    elements.confirmMessage.textContent = message;
+    elements.confirmYes.addEventListener("click", onYes);
+    elements.confirmNo.addEventListener("click", onNo);
+    elements.confirmModal.addEventListener("cancel", onCancel);
+    elements.confirmModal.addEventListener("close", onClose);
+    openDialog(elements.confirmModal);
+    elements.confirmNo.focus();
+  });
+}
+
 async function triggerQuarterlyRefresh() {
-  if (!window.confirm("Esta revisión volverá a consultar todas las fichas de Marvel Fandom y puede tardar varios minutos. ¿Continuar?")) return;
+  const confirmed = await askConfirmation({
+    title: "Revisar todos los metadatos ahora",
+    message: "Esta revisión volverá a consultar todas las fichas de Marvel Fandom y puede tardar varios minutos. ¿Continuar?"
+  });
+  if (!confirmed) return;
   elements.quarterlyRefreshButton.disabled = true;
   try {
     const result = await api("/api/catalog/refresh-all", { method: "POST", body: JSON.stringify({}) });
@@ -1240,6 +1346,8 @@ async function triggerQuarterlyRefresh() {
   } catch (error) {
     elements.quarterlyRefreshStatus.textContent = error.message;
     elements.quarterlyRefreshButton.disabled = false;
+  } finally {
+    renderQuarterlyRefreshStatus();
   }
 }
 
@@ -1324,8 +1432,7 @@ async function saveTelegramConfig(event) {
 
 async function openSettingsModal() {
   openDialog(elements.settingsModal);
-  await Promise.all([loadTelegramConfig(), loadAutomationSettings()]);
-  renderQuarterlyRefreshStatus();
+  await Promise.all([loadTelegramConfig(), loadAutomationSettings(), loadQuarterlyRefreshSettings()]);
 }
 
 function closeSettingsModal() {
@@ -1809,6 +1916,7 @@ function wireEvents() {
     });
   }
   elements.automationSave.addEventListener("click", saveAutomationSettings);
+  elements.quarterlyRefreshSave.addEventListener("click", saveQuarterlyRefreshSettings);
   elements.quarterlyRefreshButton.addEventListener("click", triggerQuarterlyRefresh);
   elements.modalClose.addEventListener("click", () => closeDialog(elements.modal));
   elements.modal.addEventListener("click", (event) => {

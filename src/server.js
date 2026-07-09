@@ -324,6 +324,25 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/catalog/refresh-schedule") {
+      sendJson(response, 200, service.getQuarterlyRefreshStatus());
+      return;
+    }
+
+    if (request.method === "PUT" && url.pathname === "/api/catalog/refresh-schedule") {
+      const body = await readRequestBody(request);
+      const status = service.configureQuarterlyRefresh({
+        enabled: body.enabled === true,
+        nextRefreshAt: body.nextRefreshAt
+      });
+      updateEnvFile(envPath, {
+        CATALOG_REFRESH_ENABLED: status.enabled ? "true" : "false",
+        CATALOG_REFRESH_NEXT_AT: status.configuredNextRefreshAt || ""
+      });
+      sendJson(response, 200, status);
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/panini/import") {
       const body = await readRequestBody(request);
       const result = service.startPaniniImport({ full: body.full === true, triggerSource: "manual" });

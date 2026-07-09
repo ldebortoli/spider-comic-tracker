@@ -1405,15 +1405,53 @@ select:focus {
   background: linear-gradient(180deg, transparent, rgba(6, 13, 21, 0.98) 32%);
 }
 
-.quarterly-refresh-settings {
+.quarterly-refresh-settings,
+.quarterly-refresh-header,
+.quarterly-refresh-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px 18px;
-  align-items: center;
+  gap: 12px;
 }
 
-.quarterly-refresh-settings > p {
-  grid-column: 1 / -1;
+.quarterly-refresh-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.quarterly-refresh-fields {
+  grid-template-columns: 0.8fr 1fr 1fr auto;
+  align-items: end;
+}
+
+.confirm-modal {
+  width: min(520px, calc(100% - 24px));
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+}
+
+.confirm-modal::backdrop {
+  background: rgba(1, 6, 13, 0.64);
+  backdrop-filter: blur(6px);
+}
+
+.confirm-frame {
+  display: grid;
+  gap: 20px;
+  padding: 26px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(10, 21, 34, 0.99), rgba(6, 13, 21, 0.99));
+  box-shadow: var(--shadow);
+}
+
+.confirm-frame h2,
+.confirm-frame p {
+  margin-top: 0;
+}
+
+.confirm-actions {
+  justify-content: flex-end;
 }
 
 @media (max-width: 1100px) {
@@ -1554,12 +1592,14 @@ select:focus {
     flex-direction: column;
   }
 
-  .quarterly-refresh-settings {
+  .quarterly-refresh-header,
+  .quarterly-refresh-fields {
     grid-template-columns: 1fr;
   }
 
-  .quarterly-refresh-settings > p {
-    grid-column: auto;
+  .quarterly-refresh-header .button,
+  .quarterly-refresh-fields .button {
+    width: 100%;
   }
 
   .filter-notice {

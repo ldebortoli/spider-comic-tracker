@@ -73,6 +73,32 @@ async function quarterlyRefreshTest() {
   assert.equal(status.importedComics, 42);
 }
 
+async function quarterlyRefreshScheduleValidationTest() {
+  const state = new Map();
+  const db = {
+    getState(key, fallback) {
+      return state.has(key) ? state.get(key) : fallback;
+    },
+    setState(key, value) {
+      state.set(key, value);
+    }
+  };
+  const service = new ComicTrackerService({
+    db,
+    config: { catalogRefresh: { enabled: true, intervalMonths: 3, nextRefreshAt: "" } }
+  });
+  state.set("catalog_full_refresh_last_at", "2026-07-01T12:00:00.000Z");
+
+  assert.throws(
+    () => service.configureQuarterlyRefresh({ enabled: true, nextRefreshAt: "2026-09-30T12:00:00.000Z" }),
+    /al menos 3 meses/
+  );
+
+  const status = service.configureQuarterlyRefresh({ enabled: true, nextRefreshAt: "2026-10-01T12:00:00.000Z" });
+  assert.equal(status.configuredNextRefreshAt, "2026-10-01T12:00:00.000Z");
+  assert.equal(state.get("catalog_full_refresh_next_at"), "2026-10-01T12:00:00.000Z");
+}
+
 async function paniniFailureDoesNotCancelUsaTest() {
   const state = new Map();
   const db = {
@@ -94,6 +120,8 @@ async function paniniFailureDoesNotCancelUsaTest() {
   console.log("ok - la actualizacion semanal ejecuta revision e importacion incremental");
   await quarterlyRefreshTest();
   console.log("ok - la revision trimestral actualiza todos los metadatos");
+  await quarterlyRefreshScheduleValidationTest();
+  console.log("ok - la revision trimestral valida la proxima fecha configurable");
   await paniniFailureDoesNotCancelUsaTest();
   console.log("ok - una caida de Panini no cancela la actualizacion USA");
 })()

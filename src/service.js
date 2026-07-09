@@ -435,6 +435,43 @@ class ComicTrackerService {
     }
   }
 
+  addMonthsToDate(date, months) {
+    const next = new Date(date);
+    next.setUTCMonth(next.getUTCMonth() + months);
+    return next;
+  }
+
+  getQuarterlyRefreshDates() {
+    const lastRefreshAt = this.db.getState("catalog_full_refresh_last_at", "");
+    const lastDate = lastRefreshAt ? new Date(lastRefreshAt) : null;
+    const validLastDate = lastDate && !Number.isNaN(lastDate.getTime()) ? lastDate : null;
+    const minimumNextDate = validLastDate ? this.addMonthsToDate(validLastDate, 3) : null;
+    const defaultNextDate = validLastDate
+      ? this.addMonthsToDate(validLastDate, this.config.catalogRefresh.intervalMonths)
+      : null;
+    const configuredNextRefreshAt = (
+      this.db.getState("catalog_full_refresh_next_at", "") ||
+      this.config.catalogRefresh.nextRefreshAt ||
+      ""
+    );
+    const configuredNextDate = configuredNextRefreshAt ? new Date(configuredNextRefreshAt) : null;
+    const validConfiguredNextDate = configuredNextDate && !Number.isNaN(configuredNextDate.getTime())
+      ? configuredNextDate
+      : null;
+    let nextDate = validConfiguredNextDate || defaultNextDate;
+
+    if (minimumNextDate && nextDate && nextDate.getTime() < minimumNextDate.getTime()) {
+      nextDate = minimumNextDate;
+    }
+
+    return {
+      lastRefreshAt,
+      minimumNextRefreshAt: minimumNextDate?.toISOString() || "",
+      configuredNextRefreshAt: validConfiguredNextDate?.toISOString() || "",
+      nextRefreshAt: nextDate?.toISOString() || ""
+    };
+  }
+
   getQuarterlyRefreshStatus() {
     let stored = {};
     try {
@@ -442,19 +479,38 @@ class ComicTrackerService {
     } catch {
       stored = {};
     }
-    const lastRefreshAt = this.db.getState("catalog_full_refresh_last_at", "");
-    const lastDate = lastRefreshAt ? new Date(lastRefreshAt) : null;
-    const nextDate = lastDate && !Number.isNaN(lastDate.getTime()) ? new Date(lastDate) : null;
-    if (nextDate) nextDate.setUTCMonth(nextDate.getUTCMonth() + this.config.catalogRefresh.intervalMonths);
+    const dates = this.getQuarterlyRefreshDates();
+    const nextDate = dates.nextRefreshAt ? new Date(dates.nextRefreshAt) : null;
     return {
       ...stored,
       enabled: this.config.catalogRefresh.enabled,
       intervalMonths: this.config.catalogRefresh.intervalMonths,
-      lastRefreshAt,
-      nextRefreshAt: nextDate?.toISOString() || "",
+      ...dates,
       due: Boolean(nextDate && Date.now() >= nextDate.getTime()),
       running: Boolean(this.currentQuarterlyRefreshPromise)
     };
+  }
+
+  configureQuarterlyRefresh({ enabled, nextRefreshAt }) {
+    this.ensureQuarterlyRefreshBaseline();
+    const normalizedEnabled = Boolean(enabled);
+    const normalizedNextRefreshAt = String(nextRefreshAt || "").trim();
+    const dates = this.getQuarterlyRefreshDates();
+    const minimumDate = dates.minimumNextRefreshAt ? new Date(dates.minimumNextRefreshAt) : null;
+    const nextDate = normalizedNextRefreshAt ? new Date(normalizedNextRefreshAt) : null;
+
+    if (normalizedEnabled && (!nextDate || Number.isNaN(nextDate.getTime()))) {
+      throw new Error("Elegí una fecha válida para la próxima revisión completa.");
+    }
+
+    if (nextDate && minimumDate && nextDate.getTime() < minimumDate.getTime()) {
+      throw new Error(`La próxima revisión debe ser al menos 3 meses después de la última: ${minimumDate.toISOString()}.`);
+    }
+
+    this.config.catalogRefresh.enabled = normalizedEnabled;
+    this.config.catalogRefresh.nextRefreshAt = nextDate ? nextDate.toISOString() : "";
+    this.db.setState("catalog_full_refresh_next_at", this.config.catalogRefresh.nextRefreshAt);
+    return this.getQuarterlyRefreshStatus();
   }
 
   startQuarterlyRefresh({ triggerSource = "quarterly", force = false } = {}) {

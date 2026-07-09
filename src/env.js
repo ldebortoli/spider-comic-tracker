@@ -76,7 +76,8 @@ function getConfig() {
     },
     catalogRefresh: {
       enabled: toBoolean(process.env.CATALOG_REFRESH_ENABLED, true),
-      intervalMonths: Math.max(1, toNumber(process.env.CATALOG_REFRESH_INTERVAL_MONTHS, 3))
+      intervalMonths: Math.max(1, toNumber(process.env.CATALOG_REFRESH_INTERVAL_MONTHS, 3)),
+      nextRefreshAt: process.env.CATALOG_REFRESH_NEXT_AT || ""
     },
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN || "",

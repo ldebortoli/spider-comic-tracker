@@ -602,13 +602,44 @@
           <p id="automation-status" class="muted"></p>
         </section>
         <section class="system-detail-card quarterly-refresh-settings">
-          <div>
-            <h3>Revisión completa de Marvel Fandom</h3>
-            <p class="muted">Cada tres meses se vuelven a consultar las fichas guardadas para actualizar fechas, portadas, guionistas y relaciones que hayan cambiado.</p>
+          <div class="quarterly-refresh-header">
+            <div>
+              <h3>Revisión completa de Marvel Fandom</h3>
+              <p class="muted">Vuelve a consultar las fichas guardadas para actualizar fechas, portadas, guionistas y relaciones que hayan cambiado.</p>
+            </div>
+            <button id="quarterly-refresh-button" type="button" class="button button-secondary">Revisar todos los metadatos ahora</button>
           </div>
-          <button id="quarterly-refresh-button" type="button" class="button button-secondary">Revisar todos los metadatos ahora</button>
+          <div class="quarterly-refresh-fields">
+            <label class="checkbox">
+              <input id="quarterly-refresh-enabled" type="checkbox" />
+              <span>Activada</span>
+            </label>
+            <label>
+              <span>Próxima fecha</span>
+              <input id="quarterly-refresh-date" type="date" />
+            </label>
+            <label>
+              <span>Hora</span>
+              <input id="quarterly-refresh-time" type="time" />
+            </label>
+            <button id="quarterly-refresh-save" type="button" class="button button-primary">Guardar revisión</button>
+          </div>
           <p id="quarterly-refresh-status" class="muted"></p>
         </section>
+      </div>
+    </dialog>
+
+    <dialog id="confirm-modal" class="confirm-modal">
+      <div class="confirm-frame">
+        <div>
+          <p class="eyebrow">Confirmación</p>
+          <h2 id="confirm-title">Confirmar acción</h2>
+          <p id="confirm-message" class="muted"></p>
+        </div>
+        <div class="form-actions confirm-actions">
+          <button id="confirm-yes" type="button" class="button button-primary">Sí</button>
+          <button id="confirm-no" type="button" class="button button-secondary">No</button>
+        </div>
       </div>
     </dialog>
 
