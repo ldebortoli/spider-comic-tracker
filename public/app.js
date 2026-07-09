@@ -1610,6 +1610,12 @@ async function reloadAll() {
 }
 
 async function triggerCatalogImport() {
+  const confirmed = await askConfirmation({
+    title: "Importar o actualizar catálogos",
+    message: "Se consultará Marvel Fandom para actualizar las listas históricas de personajes sin borrar tus marcas de colección. Puede tardar varios minutos. ¿Continuar?"
+  });
+  if (!confirmed) return;
+
   elements.catalogImportButton.disabled = true;
   setSyncStatus("Iniciando importación histórica...");
 
