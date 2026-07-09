@@ -36,8 +36,15 @@ Aplicacion local para catalogar las apariciones historicas de Spider-Man/Peter P
 ## Requisitos
 
 - Node.js 22 o superior.
+- Python 3.10 o superior con `python-telegram-bot`.
 - Un bot de Telegram.
 - Un chat privado o grupo privado para revisiones. Para mensajes con botones y control por usuario, esto es mas seguro que un canal publico.
+
+Dependencias Python:
+
+```bash
+python -m pip install -r requirements.txt
+```
 
 El servidor y la interfaz funcionan en Windows, Linux y macOS. Las instrucciones de construccion y los paneles nativos estan documentados en [BUILDING.md](BUILDING.md).
 
@@ -90,13 +97,14 @@ En Windows tambien se puede administrar el servidor con doble clic desde la carp
 - `ESTADO SERVIDOR.cmd`
 
 El servidor se ejecuta oculto desde esta misma carpeta. Su PID se guarda en `data/server.pid` y los registros en `data/server.log` y `data/server-error.log`.
+Si Telegram está activado, el servidor levanta además `src/telegram_bot.py` como proceso Python con polling mediante `python-telegram-bot`; su PID se guarda en `data/telegram-bot.pid` y se apaga junto con el servidor.
 El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon.ico`.
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.
 
 La actualización automática semanal ejecuta tres pasos secuenciales: revisa la semana USA actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de las fuentes españolas. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
 
-El horario tambien se puede activar, desactivar o modificar desde **Recursos y servidor**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
+El horario tambien se puede activar, desactivar o modificar desde **Configuración**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
 La aplicación se organiza en tres pestañas: **Issues USA**, **Panini y ediciones en español** y **Seguimiento complementario**. En la lista USA se puede dejar vacío el selector de personaje para ver todos los issues únicos del universo o grupo elegido.
 
@@ -159,7 +167,7 @@ La fuente usada son las categorias de apariciones de Marvel Database. El catalog
 - El flujo actual arranca en la semana vigente y solo revisa la semana actual. El backfill de comics viejos se hara en un proceso separado mas adelante.
 - La UI no fuerza auto-refresh luego de una corrida. Queda a proposito un boton `Actualizar vista`, como pediste.
 - Si Telegram no esta configurado, los casos ambiguos quedan como pendientes en la base, pero no se manda notificacion.
-- Los pendientes se pueden aprobar o rechazar directamente desde la pagina. Si Telegram esta configurado, el bot corre dentro del mismo servidor local y refleja tambien las decisiones tomadas desde la web.
+- Los pendientes se pueden aprobar o rechazar directamente desde la pagina. Si Telegram esta configurado, el servidor mantiene encendido el bot Python por polling y refleja tambien las decisiones tomadas desde la web.
 - El boton **Recursos y servidor** muestra CPU, RAM, disco, tamano de la base, backups, tiempo activo, operaciones y estado seguro de Telegram.
 - Si hay dudas sobre si un numero es material nuevo o una reedicion, el mensaje de Telegram explica la razon concreta de esa duda.
 - El proceso intenta mantenerse liviano: no usa dependencias externas, scrapea en serie y solo consulta la pagina del volumen cuando detecta senales de posible reedicion o recopilatorio.

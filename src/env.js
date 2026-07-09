@@ -82,6 +82,7 @@ function getConfig() {
     telegram: {
       botToken: process.env.TELEGRAM_BOT_TOKEN || "",
       pollingEnabled: toBoolean(process.env.TELEGRAM_POLLING_ENABLED, true),
+      pythonBin: process.env.TELEGRAM_PYTHON_BIN || "python",
       reviewChatId: process.env.TELEGRAM_REVIEW_CHAT_ID || "",
       summaryChatId: process.env.TELEGRAM_SUMMARY_CHAT_ID || process.env.TELEGRAM_REVIEW_CHAT_ID || "",
       backupChatId: process.env.TELEGRAM_BACKUP_CHAT_ID || process.env.TELEGRAM_SUMMARY_CHAT_ID || process.env.TELEGRAM_REVIEW_CHAT_ID || "",

@@ -1240,10 +1240,10 @@ function renderSystemMetrics(metrics) {
 
   const telegram = metrics.telegram || {};
   const telegramRuntime = telegram.running
-    ? "conectado y escuchando dentro del servidor"
+    ? `${telegram.runtime || "bot"} conectado y escuchando por polling`
     : telegram.pollingEnabled === false
-      ? "configurado con polling local desactivado"
-      : "configurado pero detenido";
+      ? `${telegram.runtime || "bot"} configurado con polling local desactivado`
+      : `${telegram.runtime || "bot"} configurado pero detenido`;
   elements.telegramRuntimeStatus.textContent = telegram.configured
     ? `Bot ${telegramRuntime}. Revisiones: ${telegram.reviewsEnabled ? "activas" : "sin chat"}; resúmenes: ${telegram.summariesEnabled ? "activos" : "sin chat"}; backups: ${telegram.backupsEnabled ? "activos" : "sin chat"}.${telegram.lastPollAt ? ` Último contacto: ${formatDateTime(telegram.lastPollAt)}.` : ""}${telegram.lastError ? ` Error: ${telegram.lastError}` : ""}`
     : "Bot no configurado. La revisión manual desde esta página funciona igualmente.";
@@ -1444,8 +1444,8 @@ function renderTelegramConfigStatus(config) {
   const pollingText = status.pollingEnabled === false
     ? "polling local desactivado"
     : status.running
-      ? "escuchando por polling local"
-      : "polling local activado pero detenido";
+      ? `escuchando por polling local con ${status.runtime || "el bot"}`
+      : `polling local activado pero ${status.runtime || "el bot"} está detenido`;
   elements.telegramConfigStatus.textContent = `Token guardado. Bot ${pollingText}. Funciones: ${enabledText}.${status.lastError ? ` Error: ${status.lastError}` : ""}`;
 }
 

@@ -14,7 +14,12 @@ loadEnv();
 const config = getConfig();
 const db = new ComicDatabase(config.dbPath);
 const service = new ComicTrackerService({ db, config });
-const telegram = new TelegramBridge({ config: config.telegram, service });
+const telegram = new TelegramBridge({
+  config: config.telegram,
+  service,
+  serverUrl: `http://127.0.0.1:${config.port}`,
+  projectRoot: process.cwd()
+});
 const systemMonitor = new SystemMonitor({ dataDir: path.dirname(config.dbPath), dbPath: config.dbPath });
 const automationManager = new AutomationManager({ config, projectRoot: process.cwd() });
 const envPath = path.join(process.cwd(), ".env");
@@ -176,6 +181,11 @@ const server = http.createServer(async (request, response) => {
         allowedUserId: config.telegram.allowedUserId,
         status: telegram.getStatus()
       });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/telegram/debug") {
+      sendJson(response, 200, { text: telegram.buildDebugText() });
       return;
     }
 
@@ -445,8 +455,15 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const webUser = { id: "local-web", username: "pagina-local", source: "web" };
-      const result = service.resolveReview(reviewId, action, webUser);
+      const user = body.user && body.user.source === "telegram-python"
+        ? {
+          id: String(body.user.id || "telegram"),
+          username: String(body.user.username || ""),
+          firstName: String(body.user.first_name || ""),
+          source: "telegram-python"
+        }
+        : { id: "local-web", username: "pagina-local", source: "web" };
+      const result = service.resolveReview(reviewId, action, user);
       if (result.status === "not_found") {
         sendJson(response, 404, { error: "Revisión no encontrada." });
         return;
@@ -456,7 +473,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      await telegram.updateResolvedReviewMessage(result.review, action, webUser);
+      await telegram.updateResolvedReviewMessage(result.review, action, user);
       sendJson(response, 200, result);
       return;
     }
@@ -497,4 +514,22 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(config.port, "127.0.0.1", () => {
   console.log(`Comic tracker disponible en http://localhost:${config.port}`);
+});
+
+let shuttingDown = false;
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  telegram.stop();
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(0), 2500).unref();
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("exit", () => {
+  telegram.stop();
 });

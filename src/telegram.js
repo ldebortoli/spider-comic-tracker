@@ -1,14 +1,23 @@
 const fs = require("node:fs/promises");
+const fsSync = require("node:fs");
+const path = require("node:path");
+const readline = require("node:readline");
+const { spawn } = require("node:child_process");
 
 class TelegramBridge {
-  constructor({ config, service }) {
+  constructor({ config, service, serverUrl, projectRoot = process.cwd() }) {
     this.config = config;
     this.service = service;
-    this.running = false;
-    this.generation = 0;
-    this.offset = 0;
+    this.serverUrl = serverUrl;
+    this.projectRoot = projectRoot;
+    this.process = null;
+    this.restartTimer = null;
     this.lastPollAt = "";
     this.lastError = "";
+    this.lastStartedAt = "";
+    this.lastStoppedAt = "";
+    this.runtime = "python-telegram-bot";
+    this.pidPath = path.join(this.projectRoot, "data", "telegram-bot.pid");
   }
 
   canSendReviews() {
@@ -27,74 +36,149 @@ class TelegramBridge {
     return {
       configured: Boolean(this.config.botToken),
       pollingEnabled: this.config.pollingEnabled !== false,
-      running: this.running,
+      running: Boolean(this.process),
+      runtime: this.runtime,
+      pid: this.process?.pid || null,
       reviewsEnabled: this.canSendReviews(),
       summariesEnabled: this.canSendSummary(),
       backupsEnabled: this.canSendBackups(),
       lastPollAt: this.lastPollAt,
-      lastError: this.lastError
+      lastError: this.lastError,
+      lastStartedAt: this.lastStartedAt,
+      lastStoppedAt: this.lastStoppedAt
     };
   }
 
   start() {
-    if (!this.config.botToken || this.config.pollingEnabled === false || this.running) {
+    if (!this.config.botToken || this.config.pollingEnabled === false || this.process) {
       return;
     }
 
-    this.running = true;
-    const generation = ++this.generation;
-    this.pollLoop(generation).catch((error) => {
-      if (this.generation === generation) {
-        console.error("Error en polling de Telegram:", error);
-        this.running = false;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    const child = spawn(this.config.pythonBin || "python", [path.join(this.projectRoot, "src", "telegram_bot.py")], {
+      cwd: this.projectRoot,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+        TELEGRAM_BOT_TOKEN: this.config.botToken,
+        TELEGRAM_ALLOWED_USER_ID: this.config.allowedUserId || "",
+        TELEGRAM_SERVER_URL: this.serverUrl
       }
+    });
+
+    this.process = child;
+    this.lastStartedAt = new Date().toISOString();
+    this.lastError = "";
+    this.saveBotPid(child.pid);
+    this.attachProcessLogging(child);
+
+    child.on("error", (error) => {
+      if (this.process !== child) return;
+      this.process = null;
+      this.lastStoppedAt = new Date().toISOString();
+      this.clearBotPid(child.pid);
+      this.lastError = error.message || String(error);
+      this.scheduleRestart();
+    });
+
+    child.on("exit", (code, signal) => {
+      if (this.process !== child) return;
+      this.process = null;
+      this.lastStoppedAt = new Date().toISOString();
+      this.clearBotPid(child.pid);
+      if (code !== 0 && code !== null) {
+        this.lastError = `Bot Python finalizó con código ${code}${signal ? ` (${signal})` : ""}`;
+      }
+      this.scheduleRestart();
     });
   }
 
   stop() {
-    if (!this.running) {
-      return;
+    clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    const child = this.process;
+    this.process = null;
+    this.lastStoppedAt = new Date().toISOString();
+    if (child && !child.killed) {
+      child.kill();
     }
-
-    this.running = false;
-    this.generation += 1;
+    this.clearBotPid(child?.pid);
   }
 
   configure(nextConfig) {
     this.stop();
     Object.assign(this.config, nextConfig);
-    this.offset = 0;
     this.lastPollAt = "";
     this.lastError = "";
     this.start();
   }
 
-  async pollLoop(generation) {
-    while (this.running && this.generation === generation) {
-      try {
-        const payload = await this.call("getUpdates", {
-          offset: this.offset,
-          timeout: 25,
-          allowed_updates: JSON.stringify(["callback_query", "message"])
-        });
-        if (this.generation !== generation) {
-          break;
-        }
-        this.lastPollAt = new Date().toISOString();
-        this.lastError = "";
+  attachProcessLogging(child) {
+    const stdout = readline.createInterface({ input: child.stdout });
+    stdout.on("line", (line) => this.handleBotProcessLine(line));
 
-        for (const update of payload.result || []) {
-          this.offset = update.update_id + 1;
-          await this.handleUpdate(update);
-        }
-      } catch (error) {
-        if (this.generation !== generation) {
-          break;
-        }
-        this.lastError = error.message || String(error);
-        console.error("Falló getUpdates de Telegram:", error);
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+    const stderr = readline.createInterface({ input: child.stderr });
+    stderr.on("line", (line) => {
+      const message = String(line || "").trim();
+      if (message) {
+        this.lastError = message.slice(0, 600);
+        console.error("Bot Telegram Python:", message);
       }
+    });
+  }
+
+  handleBotProcessLine(line) {
+    const raw = String(line || "").trim();
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const payload = JSON.parse(raw);
+      if (payload.type === "ready" || payload.type === "status") {
+        this.lastPollAt = payload.lastPollAt || new Date().toISOString();
+        this.lastError = "";
+      } else if (payload.type === "error") {
+        this.lastError = String(payload.message || "Error del bot Python").slice(0, 600);
+      }
+    } catch {
+      console.log("Bot Telegram Python:", raw);
+    }
+  }
+
+  scheduleRestart() {
+    if (!this.config.botToken || this.config.pollingEnabled === false || this.restartTimer) {
+      return;
+    }
+
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      this.start();
+    }, 5000);
+  }
+
+  saveBotPid(pid) {
+    if (!pid) return;
+    try {
+      fsSync.mkdirSync(path.dirname(this.pidPath), { recursive: true });
+      fsSync.writeFileSync(this.pidPath, String(pid), "ascii");
+    } catch (error) {
+      this.lastError = `No se pudo guardar el PID del bot: ${error.message}`;
+    }
+  }
+
+  clearBotPid(pid) {
+    try {
+      if (!fsSync.existsSync(this.pidPath)) return;
+      const saved = fsSync.readFileSync(this.pidPath, "utf8").trim();
+      if (!pid || saved === String(pid)) {
+        fsSync.unlinkSync(this.pidPath);
+      }
+    } catch {
+      // El PID file es auxiliar; no debe romper el servidor.
     }
   }
 
@@ -298,8 +382,9 @@ class TelegramBridge {
       username: bot.username || "",
       firstName: bot.first_name || "",
       sentMessage,
-      running: this.running,
-      pollingEnabled: this.config.pollingEnabled !== false
+      running: Boolean(this.process),
+      pollingEnabled: this.config.pollingEnabled !== false,
+      runtime: this.runtime
     };
   }
 
@@ -351,7 +436,8 @@ class TelegramBridge {
     return [
       "Spider Tracker /debug",
       "",
-      `Bot: ${status.running ? "polling activo" : status.pollingEnabled ? "polling activado pero detenido" : "polling desactivado"}`,
+      `Bot: ${status.running ? "python-telegram-bot activo" : status.pollingEnabled ? "python-telegram-bot activado pero detenido" : "polling desactivado"}`,
+      status.pid ? `PID bot: ${status.pid}` : "",
       `Revisión manual: ${status.reviewsEnabled ? "activa" : "sin chat"}`,
       `Resúmenes: ${status.summariesEnabled ? "activos" : "sin chat"}`,
       `Backups: ${status.backupsEnabled ? "activos" : "sin chat"}`,
