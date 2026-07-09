@@ -255,6 +255,7 @@ class ComicDatabase {
         date_precision TEXT NOT NULL DEFAULT '',
         cover_image_url TEXT,
         writers_json TEXT NOT NULL DEFAULT '[]',
+        antagonists_json TEXT NOT NULL DEFAULT '[]',
         appearance_type TEXT NOT NULL CHECK(appearance_type IN ('direct', 'minor')),
         source_defaultsort TEXT,
         source_synced_at TEXT NOT NULL,
@@ -380,6 +381,7 @@ class ComicDatabase {
     this.ensureColumn("comics", "originality_reason TEXT");
     this.ensureColumn("spiderman_catalog_issues", "date_source TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("spiderman_catalog_issues", "date_precision TEXT NOT NULL DEFAULT ''");
+    this.ensureColumn("spiderman_catalog_issues", "antagonists_json TEXT NOT NULL DEFAULT '[]'");
     this.ensureColumn("catalog_character_issues", "appearance_detail TEXT NOT NULL DEFAULT ''");
     this.ensureColumn("catalog_characters", "aliases_json TEXT NOT NULL DEFAULT '[]'");
     this.ensureColumn("catalog_characters", "weekly_enabled INTEGER NOT NULL DEFAULT 1");
@@ -766,10 +768,10 @@ class ComicDatabase {
       catalogUpsert: this.db.prepare(`
         INSERT INTO spiderman_catalog_issues (
           fandom_page_id, page_title, title, fandom_url, series_name, volume_number,
-          issue_label, issue_number, release_date, date_source, date_precision, cover_image_url, writers_json,
+          issue_label, issue_number, release_date, date_source, date_precision, cover_image_url, writers_json, antagonists_json,
           appearance_type, source_defaultsort, source_synced_at, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fandom_page_id) DO UPDATE SET
           page_title = excluded.page_title,
           title = excluded.title,
@@ -783,6 +785,7 @@ class ComicDatabase {
           date_precision = excluded.date_precision,
           cover_image_url = excluded.cover_image_url,
           writers_json = excluded.writers_json,
+          antagonists_json = excluded.antagonists_json,
           appearance_type = excluded.appearance_type,
           source_defaultsort = excluded.source_defaultsort,
           source_synced_at = excluded.source_synced_at,
@@ -1018,6 +1021,7 @@ class ComicDatabase {
       datePrecision: row.date_precision || "",
       coverImageUrl: row.cover_image_url,
       writers: safeJsonParse(row.writers_json, []),
+      antagonists: safeJsonParse(row.antagonists_json, []),
       appearanceType: row.character_appearance_type || row.appearance_type,
       appearanceDetail: scopedCharacters.length === 1 ? scopedCharacters[0].appearanceDetail : "",
       characters: scopedCharacters,
@@ -1461,6 +1465,19 @@ class ComicDatabase {
       params.push(`%${filters.character}%`);
     }
 
+    if (filters.enemy) {
+      conditions.push(`
+        EXISTS (
+          SELECT 1
+          FROM comic_characters cc3
+          WHERE cc3.comic_id = c.id
+            AND cc3.section = 'antagonists'
+            AND cc3.character_name LIKE ?
+        )
+      `);
+      params.push(`%${filters.enemy}%`);
+    }
+
     const rows = this.db.prepare(`
       SELECT
         c.*,
@@ -1512,6 +1529,7 @@ class ComicDatabase {
           issue.datePrecision || "",
           issue.coverImageUrl || "",
           JSON.stringify(uniqueStrings(issue.writers || [])),
+          JSON.stringify(uniqueStrings(issue.antagonists || [])),
           issue.appearanceType,
           issue.sourceDefaultSort || "",
           sourceSyncedAt,
@@ -1747,6 +1765,11 @@ class ComicDatabase {
       conditions.push("(i.title LIKE ? OR i.series_name LIKE ? OR i.writers_json LIKE ? OR i.owned_edition LIKE ?)");
       const search = `%${filters.query}%`;
       params.push(search, search, search, search);
+    }
+
+    if (filters.enemy) {
+      conditions.push("i.antagonists_json LIKE ?");
+      params.push(`%${filters.enemy}%`);
     }
 
     if (filters.from) {

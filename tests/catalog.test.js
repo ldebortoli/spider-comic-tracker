@@ -38,7 +38,11 @@ function parseCatalogPageTest() {
           content: [
             "| Writer1_1 = [[Stan Lee]]",
             "| Writer1_2 = [[Steve Ditko|S. Ditko]]",
-            "| Writer2_1 = Stan Lee"
+            "| Writer2_1 = Stan Lee",
+            "'''Antagonists:'''",
+            "* [[Burglar (Earth-616)|Burglar]]",
+            "'''Other Characters:'''",
+            "* [[May Reilly (Earth-616)|Aunt May]]"
           ].join("\n")
         }
       }
@@ -56,6 +60,7 @@ function parseCatalogPageTest() {
   assert.equal(result.datePrecision, "day");
   assert.equal(result.seriesName, "Amazing Fantasy");
   assert.deepEqual(result.writers, ["Stan Lee", "S. Ditko"]);
+  assert.deepEqual(result.antagonists, ["Burglar"]);
 }
 
 function coverDateFallbackTest() {

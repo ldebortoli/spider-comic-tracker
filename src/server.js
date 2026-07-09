@@ -87,7 +87,9 @@ function parseTelegramConfigPayload(body) {
   const clean = (value) => String(value || "").trim();
   return {
     hasBotToken: Object.prototype.hasOwnProperty.call(body, "botToken"),
+    hasPollingEnabled: Object.prototype.hasOwnProperty.call(body, "pollingEnabled"),
     botToken: clean(body.botToken),
+    pollingEnabled: body.pollingEnabled === true,
     reviewChatId: clean(body.reviewChatId),
     summaryChatId: clean(body.summaryChatId),
     backupChatId: clean(body.backupChatId),
@@ -167,6 +169,7 @@ const server = http.createServer(async (request, response) => {
     if (request.method === "GET" && url.pathname === "/api/telegram/config") {
       sendJson(response, 200, {
         botTokenConfigured: Boolean(config.telegram.botToken),
+        pollingEnabled: config.telegram.pollingEnabled !== false,
         reviewChatId: config.telegram.reviewChatId,
         summaryChatId: config.telegram.summaryChatId,
         backupChatId: config.telegram.backupChatId,
@@ -180,6 +183,7 @@ const server = http.createServer(async (request, response) => {
       const parsed = parseTelegramConfigPayload(await readRequestBody(request));
       const nextTelegramConfig = {
         botToken: parsed.hasBotToken ? parsed.botToken : config.telegram.botToken,
+        pollingEnabled: parsed.hasPollingEnabled ? parsed.pollingEnabled : config.telegram.pollingEnabled !== false,
         reviewChatId: parsed.reviewChatId,
         summaryChatId: parsed.summaryChatId,
         backupChatId: parsed.backupChatId,
@@ -189,6 +193,7 @@ const server = http.createServer(async (request, response) => {
       config.telegram = nextTelegramConfig;
       updateEnvFile(envPath, {
         TELEGRAM_BOT_TOKEN: nextTelegramConfig.botToken,
+        TELEGRAM_POLLING_ENABLED: nextTelegramConfig.pollingEnabled ? "true" : "false",
         TELEGRAM_REVIEW_CHAT_ID: nextTelegramConfig.reviewChatId,
         TELEGRAM_SUMMARY_CHAT_ID: nextTelegramConfig.summaryChatId,
         TELEGRAM_BACKUP_CHAT_ID: nextTelegramConfig.backupChatId,
@@ -197,12 +202,37 @@ const server = http.createServer(async (request, response) => {
       telegram.configure(nextTelegramConfig);
       sendJson(response, 200, {
         botTokenConfigured: Boolean(nextTelegramConfig.botToken),
+        pollingEnabled: nextTelegramConfig.pollingEnabled !== false,
         reviewChatId: nextTelegramConfig.reviewChatId,
         summaryChatId: nextTelegramConfig.summaryChatId,
         backupChatId: nextTelegramConfig.backupChatId,
         allowedUserId: nextTelegramConfig.allowedUserId,
         status: telegram.getStatus()
       });
+      return;
+    }
+
+    if (request.method === "PUT" && url.pathname === "/api/telegram/polling") {
+      const body = await readRequestBody(request);
+      config.telegram.pollingEnabled = body.enabled === true;
+      updateEnvFile(envPath, {
+        TELEGRAM_POLLING_ENABLED: config.telegram.pollingEnabled ? "true" : "false"
+      });
+      telegram.configure(config.telegram);
+      sendJson(response, 200, {
+        botTokenConfigured: Boolean(config.telegram.botToken),
+        pollingEnabled: config.telegram.pollingEnabled !== false,
+        reviewChatId: config.telegram.reviewChatId,
+        summaryChatId: config.telegram.summaryChatId,
+        backupChatId: config.telegram.backupChatId,
+        allowedUserId: config.telegram.allowedUserId,
+        status: telegram.getStatus()
+      });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/telegram/test") {
+      sendJson(response, 200, await telegram.testConnection());
       return;
     }
 
@@ -224,6 +254,7 @@ const server = http.createServer(async (request, response) => {
         scope: url.searchParams.get("scope") || "all",
         query: url.searchParams.get("query") || "",
         character: url.searchParams.get("character") || "",
+        enemy: url.searchParams.get("enemy") || "",
         from: url.searchParams.get("from") || "",
         to: url.searchParams.get("to") || ""
       }));
@@ -297,6 +328,7 @@ const server = http.createServer(async (request, response) => {
         character: url.searchParams.get("character") || "",
         universeGroup: url.searchParams.get("universeGroup") || "main",
         query: url.searchParams.get("query") || "",
+        enemy: url.searchParams.get("enemy") || "",
         ownership: url.searchParams.get("ownership") || "all",
         appearance: url.searchParams.get("appearance") || "all",
         from: url.searchParams.get("from") || "",

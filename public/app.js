@@ -17,6 +17,7 @@ const state = {
       character: "peter-parker-earth-616",
       universeGroup: "main",
       query: "",
+      enemy: "",
       ownership: "all",
       appearance: "all",
       from: "",
@@ -38,9 +39,11 @@ const state = {
   filters: {
     query: "",
     character: "",
+    enemy: "",
     from: "",
     to: ""
   },
+  telegramConfig: null,
   editingCharacterId: null,
   suggestionQuery: "",
   suggestionPage: 0,
@@ -89,7 +92,10 @@ const elements = {
   telegramConfigRefresh: document.querySelector("#telegram-config-refresh"),
   telegramConfigSave: document.querySelector("#telegram-config-save"),
   telegramBotToken: document.querySelector("#telegram-bot-token"),
-  telegramClearToken: document.querySelector("#telegram-clear-token"),
+  telegramTokenState: document.querySelector("#telegram-token-state"),
+  telegramTestButton: document.querySelector("#telegram-test-button"),
+  telegramPollingToggle: document.querySelector("#telegram-polling-toggle"),
+  telegramDeleteToken: document.querySelector("#telegram-delete-token"),
   telegramReviewChatId: document.querySelector("#telegram-review-chat-id"),
   telegramSummaryChatId: document.querySelector("#telegram-summary-chat-id"),
   telegramBackupChatId: document.querySelector("#telegram-backup-chat-id"),
@@ -111,6 +117,7 @@ const elements = {
   confirmMessage: document.querySelector("#confirm-message"),
   confirmYes: document.querySelector("#confirm-yes"),
   confirmNo: document.querySelector("#confirm-no"),
+  confirmClose: document.querySelector("#confirm-close"),
   modal: document.querySelector("#cover-modal"),
   modalTitle: document.querySelector("#modal-title"),
   modalDate: document.querySelector("#modal-date"),
@@ -120,6 +127,7 @@ const elements = {
   modalClose: document.querySelector("#modal-close"),
   queryInput: document.querySelector("#query-input"),
   characterInput: document.querySelector("#character-input"),
+  enemyInput: document.querySelector("#enemy-input"),
   fromInput: document.querySelector("#from-input"),
   toInput: document.querySelector("#to-input"),
   characterForm: document.querySelector("#character-form"),
@@ -139,6 +147,7 @@ const elements = {
   catalogPageMetas: document.querySelectorAll("[data-catalog-page-meta]"),
   catalogUniverseGroup: document.querySelector("#catalog-universe-group"),
   catalogQuery: document.querySelector("#catalog-query"),
+  catalogEnemy: document.querySelector("#catalog-enemy"),
   catalogFilterNotice: document.querySelector("#catalog-filter-notice"),
   catalogCharacter: document.querySelector("#catalog-character"),
   catalogOwnership: document.querySelector("#catalog-ownership"),
@@ -645,15 +654,22 @@ function renderCatalog() {
   }
 
   const activeQuery = state.catalog.filters.query;
-  if (activeQuery) {
+  const activeEnemy = state.catalog.filters.enemy;
+  if (activeQuery || activeEnemy) {
     elements.catalogFilterNotice.classList.remove("hidden");
+    const filterText = [
+      activeQuery ? `texto: <strong>${escapeHtml(activeQuery)}</strong>` : "",
+      activeEnemy ? `enemigo: <strong>${escapeHtml(activeEnemy)}</strong>` : ""
+    ].filter(Boolean).join(" · ");
     elements.catalogFilterNotice.innerHTML = `
-      <span>Filtro activo: <strong>${escapeHtml(activeQuery)}</strong>. Solo se muestran títulos o datos que coinciden; otras series de la cronología pueden quedar ocultas.</span>
+      <span>Filtro activo: ${filterText}. Solo se muestran fichas que coinciden; otras series de la cronología pueden quedar ocultas.</span>
       <button type="button" data-action="clear-catalog-query">Quitar filtro</button>
     `;
     elements.catalogFilterNotice.querySelector("button").addEventListener("click", async () => {
       elements.catalogQuery.value = "";
+      elements.catalogEnemy.value = "";
       state.catalog.filters.query = "";
+      state.catalog.filters.enemy = "";
       state.catalog.offset = 0;
       await loadCatalog();
     });
@@ -1223,14 +1239,20 @@ function renderSystemMetrics(metrics) {
   elements.systemSampledAt.textContent = `PID ${metrics.process.pid} · ${metrics.system.platform}/${metrics.system.architecture} · Node ${metrics.system.nodeVersion} · ${metrics.system.logicalCores} núcleos lógicos · muestra ${formatDateTime(metrics.sampledAt)}`;
 
   const telegram = metrics.telegram || {};
+  const telegramRuntime = telegram.running
+    ? "conectado y escuchando dentro del servidor"
+    : telegram.pollingEnabled === false
+      ? "configurado con polling local desactivado"
+      : "configurado pero detenido";
   elements.telegramRuntimeStatus.textContent = telegram.configured
-    ? `Bot ${telegram.running ? "conectado y escuchando dentro del servidor" : "configurado pero detenido"}. Revisiones: ${telegram.reviewsEnabled ? "activas" : "sin chat"}; resúmenes: ${telegram.summariesEnabled ? "activos" : "sin chat"}; backups: ${telegram.backupsEnabled ? "activos" : "sin chat"}.${telegram.lastPollAt ? ` Último contacto: ${formatDateTime(telegram.lastPollAt)}.` : ""}${telegram.lastError ? ` Error: ${telegram.lastError}` : ""}`
+    ? `Bot ${telegramRuntime}. Revisiones: ${telegram.reviewsEnabled ? "activas" : "sin chat"}; resúmenes: ${telegram.summariesEnabled ? "activos" : "sin chat"}; backups: ${telegram.backupsEnabled ? "activos" : "sin chat"}.${telegram.lastPollAt ? ` Último contacto: ${formatDateTime(telegram.lastPollAt)}.` : ""}${telegram.lastError ? ` Error: ${telegram.lastError}` : ""}`
     : "Bot no configurado. La revisión manual desde esta página funciona igualmente.";
 
   const operations = metrics.operations || {};
   const running = [
     operations.syncRunning ? "revisión semanal" : "",
     operations.catalogImportRunning ? "importación de catálogos" : "",
+    operations.paniniImportRunning ? "actualización de fuentes españolas" : "",
     operations.weeklyUpdateRunning ? "actualización automática" : "",
     operations.quarterlyRefreshRunning ? "revisión trimestral" : ""
   ].filter(Boolean);
@@ -1314,9 +1336,13 @@ async function loadQuarterlyRefreshSettings() {
 
 function askConfirmation({ title, message }) {
   return new Promise((resolve) => {
+    let settled = false;
     const cleanup = (answer) => {
+      if (settled) return;
+      settled = true;
       elements.confirmYes.removeEventListener("click", onYes);
       elements.confirmNo.removeEventListener("click", onNo);
+      elements.confirmClose.removeEventListener("click", onNo);
       elements.confirmModal.removeEventListener("cancel", onCancel);
       elements.confirmModal.removeEventListener("close", onClose);
       if (elements.confirmModal.open) {
@@ -1336,6 +1362,7 @@ function askConfirmation({ title, message }) {
     elements.confirmMessage.textContent = message;
     elements.confirmYes.addEventListener("click", onYes);
     elements.confirmNo.addEventListener("click", onNo);
+    elements.confirmClose.addEventListener("click", onNo);
     elements.confirmModal.addEventListener("cancel", onCancel);
     elements.confirmModal.addEventListener("close", onClose);
     openDialog(elements.confirmModal);
@@ -1389,8 +1416,22 @@ function closeSystemModal() {
 
 function renderTelegramConfigStatus(config) {
   const status = config.status || {};
+  state.telegramConfig = config;
+  elements.telegramTokenState.textContent = config.botTokenConfigured
+    ? "•••••••• Token guardado"
+    : "Sin token guardado";
+  elements.telegramBotToken.placeholder = config.botTokenConfigured
+    ? "Pegá un token nuevo para reemplazar el guardado"
+    : "Pegá el token de BotFather";
+  elements.telegramTestButton.disabled = !config.botTokenConfigured;
+  elements.telegramDeleteToken.disabled = !config.botTokenConfigured;
+  elements.telegramPollingToggle.textContent = status.pollingEnabled === false
+    ? "Activar polling local"
+    : "Desactivar polling local";
+  elements.telegramPollingToggle.classList.toggle("button-owned", status.pollingEnabled !== false && status.running);
+
   if (!config.botTokenConfigured) {
-    elements.telegramConfigStatus.textContent = "Bot no configurado. Cargá un token para activar Telegram.";
+    elements.telegramConfigStatus.textContent = "Bot no configurado. Cargá un token para activar Telegram. El polling local se puede dejar preparado, pero no arranca sin token.";
     return;
   }
 
@@ -1400,16 +1441,17 @@ function renderTelegramConfigStatus(config) {
     status.backupsEnabled ? "backups" : ""
   ].filter(Boolean);
   const enabledText = enabledParts.length ? enabledParts.join(", ") : "sin chats activos";
-  elements.telegramConfigStatus.textContent = `Token guardado. Bot ${status.running ? "escuchando" : "detenido"}. Funciones: ${enabledText}.${status.lastError ? ` Error: ${status.lastError}` : ""}`;
+  const pollingText = status.pollingEnabled === false
+    ? "polling local desactivado"
+    : status.running
+      ? "escuchando por polling local"
+      : "polling local activado pero detenido";
+  elements.telegramConfigStatus.textContent = `Token guardado. Bot ${pollingText}. Funciones: ${enabledText}.${status.lastError ? ` Error: ${status.lastError}` : ""}`;
 }
 
 async function loadTelegramConfig() {
   const config = await api("/api/telegram/config");
   elements.telegramBotToken.value = "";
-  elements.telegramBotToken.placeholder = config.botTokenConfigured
-    ? "Token guardado; dejalo vacío para conservarlo"
-    : "Pegá el token de BotFather";
-  elements.telegramClearToken.checked = false;
   elements.telegramReviewChatId.value = config.reviewChatId || "";
   elements.telegramSummaryChatId.value = config.summaryChatId || "";
   elements.telegramBackupChatId.value = config.backupChatId || "";
@@ -1427,9 +1469,7 @@ async function saveTelegramConfig(event) {
     allowedUserId: elements.telegramAllowedUserId.value.trim()
   };
   const token = elements.telegramBotToken.value.trim();
-  if (elements.telegramClearToken.checked) {
-    payload.botToken = "";
-  } else if (token) {
+  if (token) {
     payload.botToken = token;
   }
 
@@ -1440,7 +1480,6 @@ async function saveTelegramConfig(event) {
       body: JSON.stringify(payload)
     });
     elements.telegramBotToken.value = "";
-    elements.telegramClearToken.checked = false;
     renderTelegramConfigStatus(config);
     await loadDashboard();
     if (elements.systemModal.open) {
@@ -1450,6 +1489,78 @@ async function saveTelegramConfig(event) {
     elements.telegramConfigStatus.textContent = error.message;
   } finally {
     elements.telegramConfigSave.disabled = false;
+  }
+}
+
+async function testTelegramBot() {
+  elements.telegramTestButton.disabled = true;
+  try {
+    const result = await api("/api/telegram/test", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    const botName = result.username ? `@${result.username}` : result.firstName || "bot";
+    await Promise.all([loadTelegramConfig(), loadDashboard()]);
+    elements.telegramConfigStatus.textContent = result.sentMessage
+      ? `Prueba correcta con ${botName}. Se envió un mensaje al chat configurado.`
+      : `Prueba correcta con ${botName}. Token válido; no se envió mensaje porque no hay chat configurado.`;
+  } catch (error) {
+    elements.telegramConfigStatus.textContent = error.message;
+  } finally {
+    elements.telegramTestButton.disabled = !state.telegramConfig?.botTokenConfigured;
+  }
+}
+
+async function toggleTelegramPolling() {
+  const current = state.telegramConfig?.status || {};
+  const enable = current.pollingEnabled === false;
+  elements.telegramPollingToggle.disabled = true;
+  try {
+    const config = await api("/api/telegram/polling", {
+      method: "PUT",
+      body: JSON.stringify({ enabled: enable })
+    });
+    renderTelegramConfigStatus(config);
+    await loadDashboard();
+    if (elements.systemModal.open) {
+      await refreshSystemMetrics();
+    }
+  } catch (error) {
+    elements.telegramConfigStatus.textContent = error.message;
+  } finally {
+    elements.telegramPollingToggle.disabled = false;
+  }
+}
+
+async function deleteTelegramToken() {
+  const confirmed = await askConfirmation({
+    title: "Borrar token de Telegram",
+    message: "Se borrará el token guardado en .env y el bot dejará de hacer polling local. Los chats configurados se conservan. ¿Continuar?"
+  });
+  if (!confirmed) return;
+
+  elements.telegramDeleteToken.disabled = true;
+  try {
+    const config = await api("/api/telegram/config", {
+      method: "PUT",
+      body: JSON.stringify({
+        botToken: "",
+        reviewChatId: elements.telegramReviewChatId.value.trim(),
+        summaryChatId: elements.telegramSummaryChatId.value.trim(),
+        backupChatId: elements.telegramBackupChatId.value.trim(),
+        allowedUserId: elements.telegramAllowedUserId.value.trim()
+      })
+    });
+    elements.telegramBotToken.value = "";
+    renderTelegramConfigStatus(config);
+    await loadDashboard();
+    if (elements.systemModal.open) {
+      await refreshSystemMetrics();
+    }
+  } catch (error) {
+    elements.telegramConfigStatus.textContent = error.message;
+  } finally {
+    elements.telegramDeleteToken.disabled = !state.telegramConfig?.botTokenConfigured;
   }
 }
 
@@ -1766,6 +1877,7 @@ function wireFilters() {
   const applyFilters = debounce(async () => {
     state.filters.query = elements.queryInput.value.trim();
     state.filters.character = elements.characterInput.value.trim();
+    state.filters.enemy = elements.enemyInput.value.trim();
     state.filters.from = elements.fromInput.value;
     state.filters.to = elements.toInput.value;
     state.approvals.recentPage = 0;
@@ -1773,7 +1885,7 @@ function wireFilters() {
     await loadComics();
   });
 
-  for (const input of [elements.queryInput, elements.characterInput, elements.fromInput, elements.toInput]) {
+  for (const input of [elements.queryInput, elements.characterInput, elements.enemyInput, elements.fromInput, elements.toInput]) {
     input.addEventListener("input", applyFilters);
     input.addEventListener("change", applyFilters);
   }
@@ -1783,6 +1895,7 @@ function wireCatalogFilters() {
   const applyFilters = debounce(async () => {
     state.catalog.filters.character = elements.catalogCharacter.value || "";
     state.catalog.filters.query = elements.catalogQuery.value.trim();
+    state.catalog.filters.enemy = elements.catalogEnemy.value.trim();
     state.catalog.filters.ownership = elements.catalogOwnership.value;
     state.catalog.filters.appearance = elements.catalogAppearance.value;
     state.catalog.filters.sort = elements.catalogSort.value;
@@ -1812,6 +1925,7 @@ function wireCatalogFilters() {
 
   for (const input of [
     elements.catalogQuery,
+    elements.catalogEnemy,
     elements.catalogCharacter,
     elements.catalogOwnership,
     elements.catalogAppearance,
@@ -1943,12 +2057,9 @@ function wireEvents() {
   elements.settingsClose.addEventListener("click", closeSettingsModal);
   elements.telegramConfigForm.addEventListener("submit", saveTelegramConfig);
   elements.telegramConfigRefresh.addEventListener("click", loadTelegramConfig);
-  elements.telegramClearToken.addEventListener("change", () => {
-    elements.telegramBotToken.disabled = elements.telegramClearToken.checked;
-    if (elements.telegramClearToken.checked) {
-      elements.telegramBotToken.value = "";
-    }
-  });
+  elements.telegramTestButton.addEventListener("click", testTelegramBot);
+  elements.telegramPollingToggle.addEventListener("click", toggleTelegramPolling);
+  elements.telegramDeleteToken.addEventListener("click", deleteTelegramToken);
   elements.systemModal.addEventListener("close", () => {
     clearInterval(state.systemMetricsTimer);
     state.systemMetricsTimer = null;

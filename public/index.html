@@ -80,6 +80,10 @@
             <input id="catalog-query" type="search" placeholder="Filtrá por título, guionista o edición..." />
           </label>
           <label>
+            <span>Enemigo</span>
+            <input id="catalog-enemy" type="search" placeholder="Kingpin, Carnage, Knull..." />
+          </label>
+          <label>
             <span>Colección</span>
             <select id="catalog-ownership">
               <option value="all">Todos</option>
@@ -245,6 +249,10 @@
               <label>
                 <span>Personaje</span>
                 <input id="character-input" type="search" placeholder="Peter Parker, Venom, Black Cat..." />
+              </label>
+              <label>
+                <span>Enemigo</span>
+                <input id="enemy-input" type="search" placeholder="Kingpin, Carnage, Knull..." />
               </label>
               <label>
                 <span>Desde</span>
@@ -546,10 +554,7 @@
             <label class="settings-field-wide">
               <span>Token del bot</span>
               <input id="telegram-bot-token" type="password" autocomplete="off" placeholder="Dejalo vacío para conservar el token guardado" />
-            </label>
-            <label class="checkbox settings-field-wide">
-              <input id="telegram-clear-token" type="checkbox" />
-              <span>Borrar token guardado</span>
+              <span id="telegram-token-state" class="token-state muted"></span>
             </label>
             <label>
               <span>Chat de revisión manual</span>
@@ -570,6 +575,9 @@
             <p class="muted settings-field-wide">Si los chats de resúmenes o backups quedan vacíos, esas funciones quedan desactivadas. La revisión manual desde la web sigue funcionando aunque Telegram no esté configurado.</p>
             <div class="form-actions settings-field-wide">
               <button id="telegram-config-save" type="submit" class="button button-primary">Guardar Telegram</button>
+              <button id="telegram-test-button" type="button" class="button button-secondary">Probar bot</button>
+              <button id="telegram-polling-toggle" type="button" class="button button-secondary">Activar polling local</button>
+              <button id="telegram-delete-token" type="button" class="button button-danger">Borrar token</button>
             </div>
           </form>
         </section>
@@ -631,6 +639,7 @@
 
     <dialog id="confirm-modal" class="confirm-modal">
       <div class="confirm-frame">
+        <button id="confirm-close" type="button" class="modal-close" aria-label="Cerrar">×</button>
         <div>
           <p class="eyebrow">Confirmación</p>
           <h2 id="confirm-title">Confirmar acción</h2>

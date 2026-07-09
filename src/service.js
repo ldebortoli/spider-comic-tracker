@@ -1166,6 +1166,7 @@ class ComicTrackerService {
     return {
       syncRunning: Boolean(this.currentSyncPromise),
       catalogImportRunning: Boolean(this.currentCatalogImportPromise),
+      paniniImportRunning: Boolean(this.currentPaniniImportPromise),
       weeklyUpdateRunning: Boolean(this.currentWeeklyUpdatePromise),
       quarterlyRefreshRunning: Boolean(this.currentQuarterlyRefreshPromise)
     };

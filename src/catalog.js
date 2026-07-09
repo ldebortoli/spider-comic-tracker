@@ -359,6 +359,76 @@ function cleanWikiCreator(value) {
   return sanitizeLine(text.replace(/'{2,}/g, "").replace(/\s*,\s*/g, ", "));
 }
 
+function normalizeWikiHeading(value) {
+  return String(value || "")
+    .replace(/^=+|=+$/g, "")
+    .replace(/^'{2,}|'{2,}$/g, "")
+    .replace(/:+$/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function sectionLabelFromWikiLine(line) {
+  const headingMatch = String(line || "").trim().match(/^={2,}\s*(.*?)\s*={2,}$/);
+  if (headingMatch) {
+    return normalizeWikiHeading(headingMatch[1]);
+  }
+
+  const boldMatch = String(line || "").trim().match(/^;?\s*'{2,}\s*([^']+?)\s*:?\s*'{2,}\s*$/);
+  return boldMatch ? normalizeWikiHeading(boldMatch[1]) : "";
+}
+
+function extractCharacterSection(wikitext, label) {
+  const lines = String(wikitext || "").split(/\r?\n/);
+  const target = normalizeWikiHeading(label);
+  const sectionLabels = new Set([
+    "featured characters",
+    "supporting characters",
+    "antagonists",
+    "other characters",
+    "locations",
+    "items",
+    "vehicles",
+    "races and species",
+    "notes",
+    "trivia"
+  ]);
+  const values = [];
+  let inSection = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    const heading = sectionLabelFromWikiLine(line);
+
+    if (heading && sectionLabels.has(heading)) {
+      if (inSection && heading && heading !== target) {
+        break;
+      }
+      inSection = heading === target;
+      continue;
+    }
+
+    if (!inSection) {
+      continue;
+    }
+
+    const itemMatch = line.match(/^\*+\s*(.+)$/);
+    if (!itemMatch) {
+      continue;
+    }
+
+    const cleaned = cleanWikiCreator(itemMatch[1])
+      .replace(/\s+\([^)]*(?:mentioned|referenced)[^)]*\)$/i, "")
+      .trim();
+
+    if (cleaned && !/^(?:none|unknown|-|n\/a)$/i.test(cleaned)) {
+      values.push(cleaned);
+    }
+  }
+
+  return uniqueStrings(values).slice(0, 120);
+}
+
 function extractWriters(wikitext) {
   const writers = [];
   const pattern = /^\s*\|\s*Writer(?:\d+)?(?:_\d+)?\s*=\s*(.*?)\s*$/gmi;
@@ -493,6 +563,7 @@ function parseCatalogPage(page, member, baseUrl) {
     coverImageUrl: page?.thumbnail?.source || "",
     coverFileName: extractCoverFileName(wikitext),
     writers: extractWriters(wikitext),
+    antagonists: extractCharacterSection(wikitext, "Antagonists"),
     appearanceType: member.appearanceType,
     appearanceDetails: extractAppearanceDetails(wikitext),
     sourceDefaultSort: page?.pageprops?.defaultsort || ""

@@ -933,6 +933,12 @@ select:focus {
   grid-column: 1 / -1;
 }
 
+.token-state {
+  display: inline-block;
+  margin-top: 8px;
+  letter-spacing: 0.08em;
+}
+
 .automation-fields {
   display: grid;
   grid-template-columns: 0.8fr 1fr 1fr auto;
@@ -1436,9 +1442,10 @@ select:focus {
 }
 
 .confirm-frame {
+  position: relative;
   display: grid;
   gap: 20px;
-  padding: 26px;
+  padding: 30px 26px 26px;
   border: 1px solid var(--border);
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(10, 21, 34, 0.99), rgba(6, 13, 21, 0.99));

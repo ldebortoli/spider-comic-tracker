@@ -26,6 +26,7 @@ class TelegramBridge {
   getStatus() {
     return {
       configured: Boolean(this.config.botToken),
+      pollingEnabled: this.config.pollingEnabled !== false,
       running: this.running,
       reviewsEnabled: this.canSendReviews(),
       summariesEnabled: this.canSendSummary(),
@@ -36,7 +37,7 @@ class TelegramBridge {
   }
 
   start() {
-    if (!this.config.botToken || this.running) {
+    if (!this.config.botToken || this.config.pollingEnabled === false || this.running) {
       return;
     }
 
@@ -74,7 +75,7 @@ class TelegramBridge {
         const payload = await this.call("getUpdates", {
           offset: this.offset,
           timeout: 25,
-          allowed_updates: JSON.stringify(["callback_query"])
+          allowed_updates: JSON.stringify(["callback_query", "message"])
         });
         if (this.generation !== generation) {
           break;
@@ -267,6 +268,41 @@ class TelegramBridge {
     return this.callMultipart("sendDocument", form);
   }
 
+  async testConnection() {
+    if (!this.config.botToken) {
+      throw new Error("Telegram no tiene token configurado.");
+    }
+
+    const payload = await this.call("getMe");
+    const bot = payload.result || {};
+    const targetChatId = this.config.reviewChatId || this.config.summaryChatId || this.config.backupChatId;
+    let sentMessage = false;
+
+    if (targetChatId) {
+      await this.call("sendMessage", {
+        chat_id: targetChatId,
+        text: [
+          "Prueba de Spider Tracker",
+          "",
+          "El bot está configurado correctamente.",
+          "Comando disponible: /debug"
+        ].join("\n"),
+        disable_web_page_preview: true
+      });
+      sentMessage = true;
+    }
+
+    return {
+      ok: true,
+      id: bot.id,
+      username: bot.username || "",
+      firstName: bot.first_name || "",
+      sentMessage,
+      running: this.running,
+      pollingEnabled: this.config.pollingEnabled !== false
+    };
+  }
+
   async answerCallbackQuery(callbackQueryId, text, showAlert = false) {
     try {
       await this.call("answerCallbackQuery", {
@@ -280,11 +316,81 @@ class TelegramBridge {
   }
 
   async handleUpdate(update) {
-    if (!update.callback_query) {
+    if (update.callback_query) {
+      await this.handleCallbackQuery(update.callback_query);
       return;
     }
 
-    await this.handleCallbackQuery(update.callback_query);
+    if (update.message) {
+      await this.handleMessage(update.message);
+    }
+  }
+
+  isAuthorizedUser(user = {}) {
+    return !this.config.allowedUserId || String(user.id) === String(this.config.allowedUserId);
+  }
+
+  async sendChatMessage(chatId, text) {
+    await this.call("sendMessage", {
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true
+    });
+  }
+
+  buildDebugText() {
+    const dashboard = this.service.getDashboard();
+    const runtime = this.service.getRuntimeStatus();
+    const stats = dashboard.stats || {};
+    const lastSync = dashboard.lastSync;
+    const weekly = dashboard.weeklyUpdate || {};
+    const panini = dashboard.paniniImport || {};
+    const quarterly = dashboard.quarterlyRefresh || {};
+    const status = this.getStatus();
+
+    return [
+      "Spider Tracker /debug",
+      "",
+      `Bot: ${status.running ? "polling activo" : status.pollingEnabled ? "polling activado pero detenido" : "polling desactivado"}`,
+      `Revisión manual: ${status.reviewsEnabled ? "activa" : "sin chat"}`,
+      `Resúmenes: ${status.summariesEnabled ? "activos" : "sin chat"}`,
+      `Backups: ${status.backupsEnabled ? "activos" : "sin chat"}`,
+      "",
+      `Issues semanales guardados: ${stats.includedCount || 0}`,
+      `Pendientes de revisión: ${stats.pendingReviewsCount || 0}`,
+      `Personajes activos: ${stats.trackedCharactersCount || 0}`,
+      `Última sync: ${lastSync?.weekKey || "sin corridas"}`,
+      "",
+      `Sync semanal: ${runtime.weeklyUpdateRunning || weekly.running ? "en curso" : weekly.status || "reposo"}`,
+      `Catálogo USA: ${runtime.catalogImportRunning ? "importando" : "reposo"}`,
+      `Panini/español: ${runtime.paniniImportRunning || panini.running ? "importando" : panini.status || "reposo"}`,
+      `Revisión completa: ${runtime.quarterlyRefreshRunning || quarterly.running ? "en curso" : quarterly.status || "reposo"}`,
+      status.lastPollAt ? `Último polling: ${status.lastPollAt}` : "",
+      status.lastError ? `Último error: ${status.lastError}` : ""
+    ].filter(Boolean).join("\n");
+  }
+
+  async handleMessage(message) {
+    const text = String(message.text || "").trim();
+    if (!text.startsWith("/")) {
+      return;
+    }
+
+    if (!this.isAuthorizedUser(message.from)) {
+      await this.sendChatMessage(message.chat.id, "No autorizado para usar este bot.");
+      return;
+    }
+
+    const command = text.split(/\s+/)[0].replace(/@.+$/, "").toLowerCase();
+
+    if (command === "/debug") {
+      await this.sendChatMessage(message.chat.id, this.buildDebugText());
+      return;
+    }
+
+    if (command === "/start" || command === "/help") {
+      await this.sendChatMessage(message.chat.id, "Spider Tracker activo. Comandos disponibles: /debug");
+    }
   }
 
   async handleCallbackQuery(callbackQuery) {
@@ -296,7 +402,7 @@ class TelegramBridge {
       return;
     }
 
-    if (this.config.allowedUserId && String(callbackQuery.from.id) !== String(this.config.allowedUserId)) {
+    if (!this.isAuthorizedUser(callbackQuery.from)) {
       await this.answerCallbackQuery(callbackQuery.id, "No autorizado para esta acción.", true);
       return;
     }
