@@ -5,6 +5,7 @@ class TelegramBridge {
     this.config = config;
     this.service = service;
     this.running = false;
+    this.generation = 0;
     this.offset = 0;
     this.lastPollAt = "";
     this.lastError = "";
@@ -40,20 +41,44 @@ class TelegramBridge {
     }
 
     this.running = true;
-    this.pollLoop().catch((error) => {
-      console.error("Error en polling de Telegram:", error);
-      this.running = false;
+    const generation = ++this.generation;
+    this.pollLoop(generation).catch((error) => {
+      if (this.generation === generation) {
+        console.error("Error en polling de Telegram:", error);
+        this.running = false;
+      }
     });
   }
 
-  async pollLoop() {
-    while (this.running) {
+  stop() {
+    if (!this.running) {
+      return;
+    }
+
+    this.running = false;
+    this.generation += 1;
+  }
+
+  configure(nextConfig) {
+    this.stop();
+    Object.assign(this.config, nextConfig);
+    this.offset = 0;
+    this.lastPollAt = "";
+    this.lastError = "";
+    this.start();
+  }
+
+  async pollLoop(generation) {
+    while (this.running && this.generation === generation) {
       try {
         const payload = await this.call("getUpdates", {
           offset: this.offset,
           timeout: 25,
           allowed_updates: JSON.stringify(["callback_query"])
         });
+        if (this.generation !== generation) {
+          break;
+        }
         this.lastPollAt = new Date().toISOString();
         this.lastError = "";
 
@@ -62,6 +87,9 @@ class TelegramBridge {
           await this.handleUpdate(update);
         }
       } catch (error) {
+        if (this.generation !== generation) {
+          break;
+        }
         this.lastError = error.message || String(error);
         console.error("Falló getUpdates de Telegram:", error);
         await new Promise((resolve) => setTimeout(resolve, 5000));

@@ -7,7 +7,7 @@ const { getConfig, loadEnv } = require("./env");
 const { ComicTrackerService } = require("./service");
 const { TelegramBridge } = require("./telegram");
 const { SystemMonitor } = require("./system-monitor");
-const { AutomationManager } = require("./automation-manager");
+const { AutomationManager, updateEnvFile } = require("./automation-manager");
 
 loadEnv();
 
@@ -17,6 +17,7 @@ const service = new ComicTrackerService({ db, config });
 const telegram = new TelegramBridge({ config: config.telegram, service });
 const systemMonitor = new SystemMonitor({ dataDir: path.dirname(config.dbPath), dbPath: config.dbPath });
 const automationManager = new AutomationManager({ config, projectRoot: process.cwd() });
+const envPath = path.join(process.cwd(), ".env");
 
 service.attachTelegram(telegram);
 service.startScheduler();
@@ -79,6 +80,18 @@ function parseCharacterPayload(body) {
     displayName,
     aliases,
     active
+  };
+}
+
+function parseTelegramConfigPayload(body) {
+  const clean = (value) => String(value || "").trim();
+  return {
+    hasBotToken: Object.prototype.hasOwnProperty.call(body, "botToken"),
+    botToken: clean(body.botToken),
+    reviewChatId: clean(body.reviewChatId),
+    summaryChatId: clean(body.summaryChatId),
+    backupChatId: clean(body.backupChatId),
+    allowedUserId: clean(body.allowedUserId)
   };
 }
 
@@ -148,6 +161,48 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/api/automation") {
       sendJson(response, 200, automationManager.getStatus());
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/telegram/config") {
+      sendJson(response, 200, {
+        botTokenConfigured: Boolean(config.telegram.botToken),
+        reviewChatId: config.telegram.reviewChatId,
+        summaryChatId: config.telegram.summaryChatId,
+        backupChatId: config.telegram.backupChatId,
+        allowedUserId: config.telegram.allowedUserId,
+        status: telegram.getStatus()
+      });
+      return;
+    }
+
+    if (request.method === "PUT" && url.pathname === "/api/telegram/config") {
+      const parsed = parseTelegramConfigPayload(await readRequestBody(request));
+      const nextTelegramConfig = {
+        botToken: parsed.hasBotToken ? parsed.botToken : config.telegram.botToken,
+        reviewChatId: parsed.reviewChatId,
+        summaryChatId: parsed.summaryChatId,
+        backupChatId: parsed.backupChatId,
+        allowedUserId: parsed.allowedUserId
+      };
+
+      config.telegram = nextTelegramConfig;
+      updateEnvFile(envPath, {
+        TELEGRAM_BOT_TOKEN: nextTelegramConfig.botToken,
+        TELEGRAM_REVIEW_CHAT_ID: nextTelegramConfig.reviewChatId,
+        TELEGRAM_SUMMARY_CHAT_ID: nextTelegramConfig.summaryChatId,
+        TELEGRAM_BACKUP_CHAT_ID: nextTelegramConfig.backupChatId,
+        TELEGRAM_ALLOWED_USER_ID: nextTelegramConfig.allowedUserId
+      });
+      telegram.configure(nextTelegramConfig);
+      sendJson(response, 200, {
+        botTokenConfigured: Boolean(nextTelegramConfig.botToken),
+        reviewChatId: nextTelegramConfig.reviewChatId,
+        summaryChatId: nextTelegramConfig.summaryChatId,
+        backupChatId: nextTelegramConfig.backupChatId,
+        allowedUserId: nextTelegramConfig.allowedUserId,
+        status: telegram.getStatus()
+      });
       return;
     }
 

@@ -32,6 +32,24 @@ body {
     linear-gradient(180deg, var(--bg) 0%, #03070d 100%);
 }
 
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.modal-open {
+  position: fixed;
+  right: 0;
+  left: 0;
+  width: 100%;
+}
+
+dialog[open] {
+  max-height: calc(100dvh - 24px);
+  overscroll-behavior: contain;
+}
+
 .backdrop {
   position: fixed;
   inset: 0;
@@ -602,6 +620,9 @@ select:focus {
   position: relative;
   display: grid;
   gap: 16px;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 26px;
   border: 1px solid var(--border);
   border-radius: 26px;
@@ -844,6 +865,9 @@ select:focus {
   position: relative;
   display: grid;
   gap: 16px;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 26px;
   border: 1px solid var(--border);
   border-radius: 26px;
@@ -860,6 +884,25 @@ select:focus {
 .automation-settings {
   display: grid;
   gap: 12px;
+}
+
+.settings-frame {
+  gap: 18px;
+}
+
+.compact-heading {
+  align-items: start;
+  margin-bottom: 14px;
+}
+
+.telegram-config-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-field-wide {
+  grid-column: 1 / -1;
 }
 
 .automation-fields {
@@ -941,6 +984,9 @@ select:focus {
   background: linear-gradient(180deg, rgba(10, 21, 34, 0.98), rgba(6, 13, 21, 0.98));
   border: 1px solid var(--border);
   border-radius: 28px;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 22px;
   display: grid;
   grid-template-columns: 0.8fr 1fr;
@@ -1231,6 +1277,9 @@ select:focus {
   position: relative;
   display: grid;
   gap: 24px;
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 30px;
   border: 1px solid var(--border);
   border-radius: 26px;
@@ -1356,6 +1405,14 @@ select:focus {
 
   .spanish-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .telegram-config-form {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-field-wide {
+    grid-column: auto;
   }
 
   .spanish-edition-card {

@@ -46,7 +46,8 @@ const state = {
   suggestionPage: 0,
   suggestionPageSize: 20,
   editingCatalogIssueId: null,
-  systemMetricsTimer: null
+  systemMetricsTimer: null,
+  modalScrollY: 0
 };
 
 const elements = {
@@ -74,11 +75,24 @@ const elements = {
   syncStatus: document.querySelector("#sync-status"),
   weeklyUpdateMeta: document.querySelector("#weekly-update-meta"),
   systemInfoButton: document.querySelector("#system-info-button"),
+  settingsButton: document.querySelector("#settings-button"),
   systemModal: document.querySelector("#system-modal"),
   systemClose: document.querySelector("#system-close"),
+  settingsModal: document.querySelector("#settings-modal"),
+  settingsClose: document.querySelector("#settings-close"),
   systemSampledAt: document.querySelector("#system-sampled-at"),
   systemMetricsGrid: document.querySelector("#system-metrics-grid"),
   telegramRuntimeStatus: document.querySelector("#telegram-runtime-status"),
+  telegramConfigForm: document.querySelector("#telegram-config-form"),
+  telegramConfigStatus: document.querySelector("#telegram-config-status"),
+  telegramConfigRefresh: document.querySelector("#telegram-config-refresh"),
+  telegramConfigSave: document.querySelector("#telegram-config-save"),
+  telegramBotToken: document.querySelector("#telegram-bot-token"),
+  telegramClearToken: document.querySelector("#telegram-clear-token"),
+  telegramReviewChatId: document.querySelector("#telegram-review-chat-id"),
+  telegramSummaryChatId: document.querySelector("#telegram-summary-chat-id"),
+  telegramBackupChatId: document.querySelector("#telegram-backup-chat-id"),
+  telegramAllowedUserId: document.querySelector("#telegram-allowed-user-id"),
   serverOperationsStatus: document.querySelector("#server-operations-status"),
   automationEnabled: document.querySelector("#automation-enabled"),
   automationDay: document.querySelector("#automation-day"),
@@ -262,6 +276,38 @@ function formatDuration(seconds) {
 
 function setSyncStatus(text) {
   elements.syncStatus.textContent = text;
+}
+
+function hasOpenDialog() {
+  return Boolean(document.querySelector("dialog[open]"));
+}
+
+function updateModalScrollLock() {
+  if (hasOpenDialog()) {
+    if (!document.body.classList.contains("modal-open")) {
+      state.modalScrollY = window.scrollY;
+      document.documentElement.classList.add("modal-open");
+      document.body.classList.add("modal-open");
+      document.body.style.top = `-${state.modalScrollY}px`;
+    }
+    return;
+  }
+
+  if (document.body.classList.contains("modal-open")) {
+    document.documentElement.classList.remove("modal-open");
+    document.body.classList.remove("modal-open");
+    document.body.style.top = "";
+    window.scrollTo(0, state.modalScrollY);
+  }
+}
+
+function openDialog(dialog) {
+  dialog.showModal();
+  updateModalScrollLock();
+}
+
+function closeDialog(dialog) {
+  dialog.close();
 }
 
 function formatBackupStatus(status) {
@@ -640,7 +686,7 @@ function openCollectionModal(issue) {
   elements.collectionPublisher.value = issue.ownedPublisher || "";
   elements.collectionEdition.value = issue.ownedEdition || "";
   elements.collectionNotes.value = issue.collectionNotes || "";
-  elements.collectionModal.showModal();
+  openDialog(elements.collectionModal);
 }
 
 async function saveCollectionIssue(issue, overrides = {}) {
@@ -855,7 +901,7 @@ function openSpanishEditionModal(edition = null) {
     elements.spanishNotes.value = edition.notes;
     renderSpanishSelectedIssues();
   }
-  elements.spanishEditionModal.showModal();
+  openDialog(elements.spanishEditionModal);
 }
 
 async function searchSpanishIssues() {
@@ -910,7 +956,7 @@ async function saveSpanishEdition(event) {
     method: id ? "PUT" : "POST",
     body: JSON.stringify(payload)
   });
-  elements.spanishEditionModal.close();
+  closeDialog(elements.spanishEditionModal);
   await loadSpanishEditions();
 }
 
@@ -1198,8 +1244,8 @@ async function triggerQuarterlyRefresh() {
 }
 
 async function openSystemModal() {
-  elements.systemModal.showModal();
-  await Promise.all([refreshSystemMetrics(), loadAutomationSettings()]);
+  openDialog(elements.systemModal);
+  await refreshSystemMetrics();
   clearInterval(state.systemMetricsTimer);
   state.systemMetricsTimer = setInterval(refreshSystemMetrics, 2000);
 }
@@ -1207,7 +1253,83 @@ async function openSystemModal() {
 function closeSystemModal() {
   clearInterval(state.systemMetricsTimer);
   state.systemMetricsTimer = null;
-  elements.systemModal.close();
+  closeDialog(elements.systemModal);
+}
+
+function renderTelegramConfigStatus(config) {
+  const status = config.status || {};
+  if (!config.botTokenConfigured) {
+    elements.telegramConfigStatus.textContent = "Bot no configurado. Cargá un token para activar Telegram.";
+    return;
+  }
+
+  const enabledParts = [
+    status.reviewsEnabled ? "revisión manual" : "",
+    status.summariesEnabled ? "resúmenes" : "",
+    status.backupsEnabled ? "backups" : ""
+  ].filter(Boolean);
+  const enabledText = enabledParts.length ? enabledParts.join(", ") : "sin chats activos";
+  elements.telegramConfigStatus.textContent = `Token guardado. Bot ${status.running ? "escuchando" : "detenido"}. Funciones: ${enabledText}.${status.lastError ? ` Error: ${status.lastError}` : ""}`;
+}
+
+async function loadTelegramConfig() {
+  const config = await api("/api/telegram/config");
+  elements.telegramBotToken.value = "";
+  elements.telegramBotToken.placeholder = config.botTokenConfigured
+    ? "Token guardado; dejalo vacío para conservarlo"
+    : "Pegá el token de BotFather";
+  elements.telegramClearToken.checked = false;
+  elements.telegramReviewChatId.value = config.reviewChatId || "";
+  elements.telegramSummaryChatId.value = config.summaryChatId || "";
+  elements.telegramBackupChatId.value = config.backupChatId || "";
+  elements.telegramAllowedUserId.value = config.allowedUserId || "";
+  renderTelegramConfigStatus(config);
+  return config;
+}
+
+async function saveTelegramConfig(event) {
+  event.preventDefault();
+  const payload = {
+    reviewChatId: elements.telegramReviewChatId.value.trim(),
+    summaryChatId: elements.telegramSummaryChatId.value.trim(),
+    backupChatId: elements.telegramBackupChatId.value.trim(),
+    allowedUserId: elements.telegramAllowedUserId.value.trim()
+  };
+  const token = elements.telegramBotToken.value.trim();
+  if (elements.telegramClearToken.checked) {
+    payload.botToken = "";
+  } else if (token) {
+    payload.botToken = token;
+  }
+
+  elements.telegramConfigSave.disabled = true;
+  try {
+    const config = await api("/api/telegram/config", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    elements.telegramBotToken.value = "";
+    elements.telegramClearToken.checked = false;
+    renderTelegramConfigStatus(config);
+    await loadDashboard();
+    if (elements.systemModal.open) {
+      await refreshSystemMetrics();
+    }
+  } catch (error) {
+    elements.telegramConfigStatus.textContent = error.message;
+  } finally {
+    elements.telegramConfigSave.disabled = false;
+  }
+}
+
+async function openSettingsModal() {
+  openDialog(elements.settingsModal);
+  await Promise.all([loadTelegramConfig(), loadAutomationSettings()]);
+  renderQuarterlyRefreshStatus();
+}
+
+function closeSettingsModal() {
+  closeDialog(elements.settingsModal);
 }
 
 function renderCharacters() {
@@ -1270,7 +1392,7 @@ function openModal(comic) {
   elements.modalLink.href = comic.fandomUrl;
   elements.modalCover.src = comic.coverImageUrl || "";
   elements.modalCover.alt = `Tapa de ${comic.title}`;
-  elements.modal.showModal();
+  openDialog(elements.modal);
 }
 
 function resetCharacterForm() {
@@ -1579,10 +1701,10 @@ function wireSpanishEditionEvents() {
   }
 
   elements.spanishAddButton.addEventListener("click", () => openSpanishEditionModal());
-  elements.spanishEditionClose.addEventListener("click", () => elements.spanishEditionModal.close());
-  elements.spanishEditionCancel.addEventListener("click", () => elements.spanishEditionModal.close());
+  elements.spanishEditionClose.addEventListener("click", () => closeDialog(elements.spanishEditionModal));
+  elements.spanishEditionCancel.addEventListener("click", () => closeDialog(elements.spanishEditionModal));
   elements.spanishEditionModal.addEventListener("click", (event) => {
-    if (event.target === elements.spanishEditionModal) elements.spanishEditionModal.close();
+    if (event.target === elements.spanishEditionModal) closeDialog(elements.spanishEditionModal);
   });
   elements.spanishEditionForm.addEventListener("submit", saveSpanishEdition);
   elements.spanishIssueSearch.addEventListener("input", debounce(searchSpanishIssues, 300));
@@ -1627,6 +1749,9 @@ function wireAppTabs() {
 }
 
 function wireEvents() {
+  for (const dialog of document.querySelectorAll("dialog")) {
+    dialog.addEventListener("close", updateModalScrollLock);
+  }
   elements.refreshButton.addEventListener("click", reloadAll);
   elements.historyToggle.addEventListener("click", toggleApprovalHistory);
   for (const button of elements.approvalPageButtons) {
@@ -1650,7 +1775,22 @@ function wireEvents() {
   elements.catalogImportButton.addEventListener("click", triggerCatalogImport);
   elements.catalogContinueButton.addEventListener("click", triggerCatalogContinue);
   elements.systemInfoButton.addEventListener("click", openSystemModal);
+  elements.settingsButton.addEventListener("click", openSettingsModal);
   elements.systemClose.addEventListener("click", closeSystemModal);
+  elements.settingsClose.addEventListener("click", closeSettingsModal);
+  elements.settingsModal.addEventListener("click", (event) => {
+    if (event.target === elements.settingsModal) {
+      closeSettingsModal();
+    }
+  });
+  elements.telegramConfigForm.addEventListener("submit", saveTelegramConfig);
+  elements.telegramConfigRefresh.addEventListener("click", loadTelegramConfig);
+  elements.telegramClearToken.addEventListener("change", () => {
+    elements.telegramBotToken.disabled = elements.telegramClearToken.checked;
+    if (elements.telegramClearToken.checked) {
+      elements.telegramBotToken.value = "";
+    }
+  });
   elements.systemModal.addEventListener("close", () => {
     clearInterval(state.systemMetricsTimer);
     state.systemMetricsTimer = null;
@@ -1670,17 +1810,17 @@ function wireEvents() {
   }
   elements.automationSave.addEventListener("click", saveAutomationSettings);
   elements.quarterlyRefreshButton.addEventListener("click", triggerQuarterlyRefresh);
-  elements.modalClose.addEventListener("click", () => elements.modal.close());
+  elements.modalClose.addEventListener("click", () => closeDialog(elements.modal));
   elements.modal.addEventListener("click", (event) => {
     if (event.target === elements.modal) {
-      elements.modal.close();
+      closeDialog(elements.modal);
     }
   });
-  elements.collectionClose.addEventListener("click", () => elements.collectionModal.close());
-  elements.collectionCancel.addEventListener("click", () => elements.collectionModal.close());
+  elements.collectionClose.addEventListener("click", () => closeDialog(elements.collectionModal));
+  elements.collectionCancel.addEventListener("click", () => closeDialog(elements.collectionModal));
   elements.collectionModal.addEventListener("click", (event) => {
     if (event.target === elements.collectionModal) {
-      elements.collectionModal.close();
+      closeDialog(elements.collectionModal);
     }
   });
   elements.collectionForm.addEventListener("submit", async (event) => {
@@ -1697,7 +1837,7 @@ function wireEvents() {
       editionTitle: elements.collectionEdition.value,
       notes: elements.collectionNotes.value
     });
-    elements.collectionModal.close();
+    closeDialog(elements.collectionModal);
   });
 
   elements.characterReset.addEventListener("click", resetCharacterForm);

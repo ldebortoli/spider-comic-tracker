@@ -25,7 +25,8 @@
           <a href="/api/catalog/export.csv" class="button button-secondary has-tooltip" aria-label="Exportar CSV" data-tooltip="Descarga el catálogo USA y el estado de tu colección en un archivo CSV.">Exportar CSV</a>
           <button id="sync-button" class="button button-primary has-tooltip" aria-label="Revisar semana actual" data-tooltip="Busca novedades de la semana en Marvel Fandom y, a continuación, actualiza las fuentes españolas.">Revisar semana actual</button>
           <button id="refresh-button" class="button button-secondary has-tooltip" aria-label="Actualizar vista" data-tooltip="Recarga lo que ves desde la base local. No vuelve a consultar las fuentes externas.">Actualizar vista</button>
-          <button id="system-info-button" class="button button-secondary has-tooltip" aria-label="Recursos y servidor" data-tooltip="Muestra CPU, memoria, disco, estado del servidor, automatización y Telegram.">Recursos y servidor</button>
+          <button id="system-info-button" class="button button-secondary has-tooltip" aria-label="Recursos y servidor" data-tooltip="Muestra CPU, memoria, disco, tiempo activo y operaciones en curso. No modifica configuraciones.">Recursos y servidor</button>
+          <button id="settings-button" class="button button-secondary has-tooltip" aria-label="Configuración" data-tooltip="Abre los ajustes locales de Telegram, actualización semanal y revisión completa de metadatos.">Configuración</button>
           <div id="sync-status" class="sync-status">Listo</div>
           <div id="weekly-update-meta" class="weekly-update-meta"></div>
         </div>
@@ -520,6 +521,57 @@
           <h3>Operaciones</h3>
           <p id="server-operations-status" class="muted"></p>
         </section>
+        <p class="muted">Las métricas se actualizan cada 2 segundos mientras esta ventana permanece abierta. Los ajustes están en el botón Configuración.</p>
+      </div>
+    </dialog>
+
+    <dialog id="settings-modal" class="system-modal settings-modal">
+      <div class="system-frame settings-frame">
+        <button id="settings-close" type="button" class="modal-close" aria-label="Cerrar">x</button>
+        <div>
+          <p class="eyebrow">Configuración local</p>
+          <h2>Configuración</h2>
+          <p class="muted">Estos ajustes se guardan en el archivo local .env y se aplican al servidor de esta PC.</p>
+        </div>
+        <section class="system-detail-card telegram-settings">
+          <div class="section-heading compact-heading">
+            <div>
+              <h3>Bot de Telegram</h3>
+              <p id="telegram-config-status" class="muted"></p>
+            </div>
+            <button id="telegram-config-refresh" type="button" class="button button-secondary">Actualizar estado</button>
+          </div>
+          <form id="telegram-config-form" class="telegram-config-form">
+            <label class="settings-field-wide">
+              <span>Token del bot</span>
+              <input id="telegram-bot-token" type="password" autocomplete="off" placeholder="Dejalo vacío para conservar el token guardado" />
+            </label>
+            <label class="checkbox settings-field-wide">
+              <input id="telegram-clear-token" type="checkbox" />
+              <span>Borrar token guardado</span>
+            </label>
+            <label>
+              <span>Chat de revisión manual</span>
+              <input id="telegram-review-chat-id" type="text" placeholder="Ej.: 123456789 o -100..." />
+            </label>
+            <label>
+              <span>Chat de resúmenes</span>
+              <input id="telegram-summary-chat-id" type="text" placeholder="Opcional" />
+            </label>
+            <label>
+              <span>Chat de backups</span>
+              <input id="telegram-backup-chat-id" type="text" placeholder="Opcional" />
+            </label>
+            <label>
+              <span>Usuario permitido</span>
+              <input id="telegram-allowed-user-id" type="text" placeholder="Opcional: ID de usuario" />
+            </label>
+            <p class="muted settings-field-wide">Si los chats de resúmenes o backups quedan vacíos, esas funciones quedan desactivadas. La revisión manual desde la web sigue funcionando aunque Telegram no esté configurado.</p>
+            <div class="form-actions settings-field-wide">
+              <button id="telegram-config-save" type="submit" class="button button-primary">Guardar Telegram</button>
+            </div>
+          </form>
+        </section>
         <section class="system-detail-card automation-settings">
           <h3>Actualización automática</h3>
           <p class="muted">La tarea del sistema solo enciende el servidor. El servidor ejecuta una única actualización por semana; Telegram no agenda corridas.</p>
@@ -556,7 +608,6 @@
           <button id="quarterly-refresh-button" type="button" class="button button-secondary">Revisar todos los metadatos ahora</button>
           <p id="quarterly-refresh-status" class="muted"></p>
         </section>
-        <p class="muted">Las métricas se actualizan cada 2 segundos mientras esta ventana permanece abierta.</p>
       </div>
     </dialog>
 
