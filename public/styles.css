@@ -79,10 +79,16 @@ dialog[open] {
 
 .hero {
   display: grid;
-  grid-template-columns: 1.6fr 0.9fr;
-  gap: 24px;
-  padding: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(430px, 0.72fr);
+  align-items: center;
+  gap: clamp(28px, 5vw, 72px);
+  padding: clamp(28px, 3vw, 40px);
   margin-bottom: 22px;
+}
+
+.hero-copy {
+  display: grid;
+  align-content: center;
 }
 
 .eyebrow {
@@ -102,22 +108,44 @@ dialog[open] {
 }
 
 .hero h1 {
-  font-size: clamp(2rem, 3vw, 3.7rem);
-  max-width: 15ch;
+  font-size: clamp(2.6rem, 4.1vw, 4.6rem);
+  max-width: 720px;
+  letter-spacing: -0.045em;
+}
+
+.hero-subtitle {
+  margin: 14px 0 0;
+  max-width: 62ch;
+  color: var(--text);
+  font-size: clamp(1.05rem, 1.35vw, 1.35rem);
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .lead {
-  margin: 16px 0 0;
-  max-width: 70ch;
+  margin: 14px 0 0;
+  max-width: 74ch;
   color: var(--muted);
   line-height: 1.65;
 }
 
 .hero-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: center;
+  align-content: center;
   gap: 12px;
+}
+
+.hero-actions .button {
+  min-height: 48px;
+  text-align: center;
+}
+
+#catalog-import-button,
+.sync-status,
+.weekly-update-meta {
+  grid-column: 1 / -1;
 }
 
 .button {
@@ -1549,6 +1577,10 @@ select:focus {
 
   .hero h1 {
     max-width: none;
+  }
+
+  .hero-actions {
+    grid-template-columns: 1fr;
   }
 
   .volume-group__header {
