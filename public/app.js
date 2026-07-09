@@ -69,6 +69,7 @@ const elements = {
   charactersList: document.querySelector("#characters-list"),
   emptyState: document.querySelector("#empty-state"),
   syncButton: document.querySelector("#sync-button"),
+  exportCsvButton: document.querySelector("#export-csv-button"),
   catalogImportButton: document.querySelector("#catalog-import-button"),
   catalogContinueButton: document.querySelector("#catalog-continue-button"),
   refreshButton: document.querySelector("#refresh-button"),
@@ -1361,6 +1362,18 @@ async function triggerQuarterlyRefresh() {
   }
 }
 
+async function confirmCsvExport(event) {
+  event.preventDefault();
+  const confirmed = await askConfirmation({
+    title: "Exportar CSV",
+    message: "Se descargará un archivo CSV con el catálogo USA y el estado actual de tu colección. ¿Continuar?"
+  });
+
+  if (confirmed) {
+    window.location.assign(elements.exportCsvButton.href);
+  }
+}
+
 async function openSystemModal() {
   openDialog(elements.systemModal);
   await refreshSystemMetrics();
@@ -1886,6 +1899,7 @@ function wireEvents() {
     });
   }
   elements.syncButton.addEventListener("click", triggerSync);
+  elements.exportCsvButton.addEventListener("click", confirmCsvExport);
   elements.paniniImportButton.addEventListener("click", triggerPaniniImport);
   elements.catalogImportButton.addEventListener("click", triggerCatalogImport);
   elements.catalogContinueButton.addEventListener("click", triggerCatalogContinue);
