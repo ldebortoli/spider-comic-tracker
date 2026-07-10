@@ -98,6 +98,7 @@ En Windows tambien se puede administrar el servidor con doble clic desde la carp
 
 El servidor se ejecuta oculto desde esta misma carpeta. Su PID se guarda en `data/server.pid` y los registros en `data/server.log` y `data/server-error.log`.
 Si Telegram está activado, el servidor levanta además `src/telegram_bot.py` como proceso Python con polling mediante `python-telegram-bot`; su PID se guarda en `data/telegram-bot.pid` y se apaga junto con el servidor.
+Comandos disponibles: `/debug` para estado operativo y `/log` para devolver el JSON de la update recibida por Telegram.
 El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon.ico`.
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.

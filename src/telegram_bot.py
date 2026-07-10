@@ -4,9 +4,10 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from io import BytesIO
 from datetime import datetime, timezone
 
-from telegram import Update
+from telegram import InputFile, Update
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 
@@ -74,13 +75,34 @@ async def debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(text, disable_web_page_preview=True)
 
 
+async def log_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    emit("status", event="command", command="/log", lastPollAt=utc_now())
+    if not is_authorized(update.effective_user):
+        await update.effective_message.reply_text("No autorizado para usar este bot.")
+        return
+
+    payload = update.to_dict()
+    text = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, default=str)
+
+    if len(text) <= 3800:
+        await update.effective_message.reply_text(text)
+        return
+
+    buffer = BytesIO(text.encode("utf-8"))
+    buffer.name = "telegram-update.json"
+    await update.effective_message.reply_document(
+        document=InputFile(buffer, filename="telegram-update.json"),
+        caption="JSON completo de la update recibida por Telegram.",
+    )
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     emit("status", event="command", command="/help", lastPollAt=utc_now())
     if not is_authorized(update.effective_user):
         await update.effective_message.reply_text("No autorizado para usar este bot.")
         return
 
-    await update.effective_message.reply_text("Spider Tracker activo. Comandos disponibles: /debug")
+    await update.effective_message.reply_text("Spider Tracker activo. Comandos disponibles: /debug, /log")
 
 
 async def review_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -163,6 +185,7 @@ def main():
 
     application = Application.builder().token(TOKEN).post_init(post_init).build()
     application.add_handler(CommandHandler("debug", debug_command))
+    application.add_handler(CommandHandler("log", log_command))
     application.add_handler(CommandHandler("start", help_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CallbackQueryHandler(review_callback))
