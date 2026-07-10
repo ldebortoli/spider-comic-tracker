@@ -10,6 +10,8 @@ No hay una tarea activa registrada.
 
 ## Estado actual
 
+- El panel compilado y el script PowerShell usan el mismo mutex y rechazan una segunda ventana.
+- `scripts/build-server-control.ps1` recompilo correctamente `bin/SpiderTrackerServerControl.exe` y el script PowerShell pasa el parser.
 - Memoria persistente inicializada el 2026-07-10.
 - Rama detectada: `main`.
 - Remoto origin: `https://github.com/ldebortoli/spider-comic-tracker.git`.

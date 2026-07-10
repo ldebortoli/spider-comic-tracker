@@ -5,17 +5,29 @@ using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Windows.Forms;
+using ThreadingMutex = System.Threading.Mutex;
 
 namespace SpiderTracker
 {
     internal static class Program
     {
+        private const string PanelMutexName = @"Local\SpiderTrackerServerControl";
+
         [STAThread]
         private static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ServerControlForm());
+            bool createdNew;
+            using (ThreadingMutex panelMutex = new ThreadingMutex(true, PanelMutexName, out createdNew))
+            {
+                if (!createdNew)
+                {
+                    MessageBox.Show("El panel de Spider Tracker ya esta abierto.", "Spider Tracker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new ServerControlForm());
+            }
         }
     }
 

@@ -3,6 +3,19 @@
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+$createdNew = $false
+$panelMutex = New-Object System.Threading.Mutex($true, "Local\SpiderTrackerServerControl", [ref] $createdNew)
+if (-not $createdNew) {
+  [System.Windows.Forms.MessageBox]::Show(
+    "El panel de Spider Tracker ya esta abierto.",
+    "Spider Tracker",
+    [System.Windows.Forms.MessageBoxButtons]::OK,
+    [System.Windows.Forms.MessageBoxIcon]::Information
+  ) | Out-Null
+  $panelMutex.Dispose()
+  return
+}
+
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 $form = New-Object System.Windows.Forms.Form
@@ -183,6 +196,10 @@ $timer.Interval = 1500
 $timer.Add_Tick({ Update-ServerStatus })
 $timer.Start()
 
-$form.Add_FormClosed({ $timer.Stop() })
+$form.Add_FormClosed({
+  $timer.Stop()
+  $panelMutex.ReleaseMutex()
+  $panelMutex.Dispose()
+})
 Update-ServerStatus
 [void] $form.ShowDialog()
