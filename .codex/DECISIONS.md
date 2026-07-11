@@ -50,3 +50,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: conservar en el servidor durante cinco minutos el catalogo completo de enemigos por alcance, pero entregar y renderizar paginas de hasta 50. Priorizar primero 100 apariciones o mas, luego entre 10 y 99 y finalmente menos de 10; cargar paginas adicionales al acercarse al final del scroll y permitir buscar dentro del mismo catalogo.
 - Motivo: evita transferir y crear de una vez mas de ocho mil opciones, mantiene rapido el primer despliegue y conserva una forma practica de encontrar enemigos poco frecuentes.
+
+## D-008 - Conteo y filtro de enemigos comparten identidad normalizada
+
+- Estado: vigente; complementa D-004 y D-007.
+- Fecha: 2026-07-11.
+- Decision: agrupar y filtrar enemigos por su nombre normalizado, aunque las fichas fuente difieran en comillas, puntos, espacios o mayusculas. Mostrar el nombre limpio, quitando solo comillas que envuelven el nombre completo, y conservar comillas internas con significado. El selector se ordena por cantidad descendente por defecto y permite cambiar a orden alfabetico.
+- Motivo: el selector ya sumaba variantes equivalentes, pero la consulta exacta devolvia solo la variante elegida y producia discrepancias como 106 apariciones contabilizadas frente a un unico resultado.

@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tareas pendientes. El selector paginado de enemigos quedo implementado y validado.
+Sin tareas pendientes. La auditoria del selector de enemigos quedo implementada y validada.
 
 ## Estado actual
 
@@ -17,12 +17,13 @@ Sin tareas pendientes. El selector paginado de enemigos quedo implementado y val
 - Rama detectada: `main`.
 - Remoto origin: `https://github.com/ldebortoli/spider-comic-tracker.git`.
 - El filtro de enemigos usa endpoints `/api/catalog/enemies` y `/api/comics/enemies`, con tres grupos priorizados (`100 apariciones o mas`, `entre 10 y 99` y `menos de 10`).
-- `listCatalogEnemies` agrega antagonistas con `json_each` en SQLite y reutiliza un `Intl.Collator`; el servicio cachea el listado completo cinco minutos y entrega paginas de hasta 50. La UI carga el primer bloque, agrega los siguientes al hacer scroll y permite buscar sin convertir el filtro en texto libre.
+- `listCatalogEnemies` agrega antagonistas con `json_each` en SQLite y reutiliza un `Intl.Collator`; el servicio cachea el listado completo cinco minutos y entrega paginas de hasta 50. La UI carga el primer bloque, agrega los siguientes al hacer scroll, permite buscar y alternar entre cantidad descendente y orden alfabetico.
+- El filtro de catalogo compara `normalize_text(enemy.value)` con el nombre seleccionado normalizado, por lo que coincide con todas las variantes que componen el conteo. Las comillas exteriores redundantes se limpian al mostrar y guardar; las comillas internas se conservan.
 - `scripts/backfill-catalog-enemies.js` completo el backfill de 11.248 fichas el 2026-07-11 sin errores; `npm run repair:enemies` lo puede repetir.
 - Parser y capa de base limpian notas de plantillas de antagonistas antes de guardar.
 - La revision semanal consulta `Category:Week_##,_YYYY` en Marvel Fandom para cada semana faltante, en orden; usa la ultima `sync_run` completada como corte y cruza correctamente cambios de año ISO.
 - Las semanas recuperadas ejecutan una sola vez al final la importacion incremental historica y la revision de fuentes españolas; backups/resumenes Telegram tampoco se repiten por cada semana atrasada.
-- El servidor local fue reiniciado y quedo encendido en `http://localhost:8787` con PID 8036 durante esta sesion.
+- El servidor local estaba apagado al iniciar, se levanto solo para la prueba visual y volvio a quedar apagado al finalizar.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos

@@ -94,7 +94,11 @@ function enemyOptionsPaginationTest() {
         popularThreshold: 100,
         total: 125,
         groups: [
-          { key: "popular", label: "100 apariciones o más", items: makeItems("Popular", 5, 100) },
+          {
+            key: "popular",
+            label: "100 apariciones o más",
+            items: makeItems("Popular", 5, 100).map((item, index) => ({ ...item, count: 100 + index }))
+          },
           { key: "frequent", label: "Entre 10 y 99 apariciones", items: makeItems("Frecuente", 60, 10) },
           { key: "other", label: "Menos de 10 apariciones", items: makeItems("Otro", 60, 1) }
         ]
@@ -104,10 +108,13 @@ function enemyOptionsPaginationTest() {
   const service = new ComicTrackerService({ db, config: {} });
   const first = service.listCatalogEnemies({}, { limit: 50, offset: 0 });
   const second = service.listCatalogEnemies({}, { limit: 50, offset: 50 });
+  const alphabetical = service.listCatalogEnemies({}, { limit: 50, offset: 0, sort: "name" });
   const searched = service.listCatalogEnemies({}, { limit: 50, search: "Otro 060", selected: "Otro 060" });
 
   assert.equal(first.groups.flatMap((group) => group.items).length, 50);
   assert.deepEqual(first.groups.map((group) => group.key), ["popular", "frequent"]);
+  assert.equal(first.groups[0].items[0].name, "Popular 005");
+  assert.equal(alphabetical.groups[0].items[0].name, "Popular 001");
   assert.equal(first.hasMore, true);
   assert.equal(second.offset, 50);
   assert.equal(searched.total, 1);

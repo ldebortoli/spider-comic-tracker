@@ -8,6 +8,9 @@ No hay tareas en curso.
 
 # DONE
 
+- [2026-07-11] Permitir ordenar el selector de enemigos por cantidad de apariciones o alfabeticamente.
+- [2026-07-11] Corregir la discrepancia por la que un enemigo con 100+ apariciones podia filtrar solo una variante textual y, por lo tanto, muy pocos comics.
+- [2026-07-11] Limpiar comillas exteriores redundantes en nombres de enemigos sin dañar nombres compuestos como `Green Goblin ("Norman Osborn")`.
 - [2026-07-11] Reemplazar la carga masiva del dropdown de enemigos por un selector paginado de 50 elementos con prioridad 100+, luego 10+ y carga incremental al hacer scroll.
 
 - [2026-07-11] Hacer que la revision semanal recupere secuencialmente todas las semanas faltantes desde la ultima completada, incluso entre años ISO y sin duplicar comics.

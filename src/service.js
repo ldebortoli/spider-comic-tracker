@@ -82,12 +82,25 @@ function aggregateWeeklyReviews(weekSummaries) {
   return summary;
 }
 
-function paginateEnemyOptions(options, { limit = 50, offset = 0, search = "", selected = "" } = {}) {
+function paginateEnemyOptions(options, {
+  limit = 50,
+  offset = 0,
+  search = "",
+  selected = "",
+  sort = "count"
+} = {}) {
   const safeLimit = Math.min(50, Math.max(1, Number(limit) || 50));
   const safeOffset = Math.max(0, Number(offset) || 0);
   const normalizedSearch = normalizeText(search);
+  const safeSort = sort === "name" ? "name" : "count";
+  const compareNames = (a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+  const compareItems = safeSort === "name"
+    ? compareNames
+    : (a, b) => Number(b.count || 0) - Number(a.count || 0) || compareNames(a, b);
   const allEntries = (options.groups || []).flatMap((group) => (
-    (group.items || []).map((item) => ({ groupKey: group.key, groupLabel: group.label, item }))
+    [...(group.items || [])]
+      .sort(compareItems)
+      .map((item) => ({ groupKey: group.key, groupLabel: group.label, item }))
   ));
   const selectedEntry = selected
     ? allEntries.find((entry) => entry.item.name === selected)
@@ -111,6 +124,7 @@ function paginateEnemyOptions(options, { limit = 50, offset = 0, search = "", se
     unfilteredTotal: options.total,
     limit: safeLimit,
     offset: safeOffset,
+    sort: safeSort,
     hasMore: safeOffset + pageEntries.length < filteredEntries.length,
     selectedExists: !selected || Boolean(selectedEntry),
     selectedItem: selectedEntry?.item || null,

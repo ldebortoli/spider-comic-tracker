@@ -292,7 +292,8 @@ const server = http.createServer(async (request, response) => {
         limit: url.searchParams.get("limit") || "50",
         offset: url.searchParams.get("offset") || "0",
         search: url.searchParams.get("search") || "",
-        selected: url.searchParams.get("selected") || ""
+        selected: url.searchParams.get("selected") || "",
+        sort: url.searchParams.get("sort") || "count"
       }));
       return;
     }
@@ -336,7 +337,8 @@ const server = http.createServer(async (request, response) => {
         limit: url.searchParams.get("limit") || "50",
         offset: url.searchParams.get("offset") || "0",
         search: url.searchParams.get("search") || "",
-        selected: url.searchParams.get("selected") || ""
+        selected: url.searchParams.get("selected") || "",
+        sort: url.searchParams.get("sort") || "count"
       }));
       return;
     }

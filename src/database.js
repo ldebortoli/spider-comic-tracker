@@ -17,7 +17,7 @@ const FREQUENT_ENEMY_APPEARANCE_THRESHOLD = 10;
 const ENEMY_NAME_COLLATOR = new Intl.Collator("es", { sensitivity: "base" });
 
 function addEnemyCount(counts, rawName, increment = 1) {
-  const name = String(rawName || "").trim();
+  const name = cleanEnemyNameForStorage(rawName);
   const normalized = normalizeText(name);
 
   if (!name || !normalized) {
@@ -72,6 +72,7 @@ function buildEnemyOptionGroups(counts) {
 function cleanEnemyNameForStorage(value) {
   return String(value || "")
     .trim()
+    .replace(/^["“”](.+)["“”]$/u, "$1")
     .replace(/\s+\b(?:1st|first appearance|mentioned|referenced|recap|flashback|dream|illusion|past|death|on[\s-]?screen)\b.*$/i, "")
     .replace(/^[-–—]\s*/, "")
     .replace(/\s*[-–—]$/, "")
@@ -212,6 +213,7 @@ class ComicDatabase {
     this.dbPath = dbPath;
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
+    this.db.function("normalize_text", normalizeText);
     this.db.exec("PRAGMA foreign_keys = ON;");
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec("PRAGMA busy_timeout = 5000;");
@@ -1949,10 +1951,10 @@ class ComicDatabase {
         EXISTS (
           SELECT 1
           FROM json_each(i.antagonists_json) enemy
-          WHERE enemy.value = ? COLLATE NOCASE
+          WHERE normalize_text(enemy.value) = ?
         )
       `);
-      params.push(filters.enemy);
+      params.push(normalizeText(filters.enemy));
     }
 
     if (filters.from) {
@@ -2088,7 +2090,7 @@ class ComicDatabase {
     const counts = new Map();
 
     for (const row of rows) {
-      const name = String(row.name || "").trim();
+      const name = cleanEnemyNameForStorage(row.name);
       const normalized = normalizeText(name);
       if (!normalized) continue;
 

@@ -300,6 +300,7 @@ function enemyDropdownGroupsAndFiltersTest() {
       writers: [],
       antagonists: [
         "Kingpin",
+        "Hydra",
         ...(index <= 10 ? ["Mysterio"] : []),
         ...(index === 1 ? ["Chameleon 1st"] : [])
       ],
@@ -313,14 +314,21 @@ function enemyDropdownGroupsAndFiltersTest() {
     pageId: issue.fandomPageId,
     appearanceType: "direct"
   })));
+  db.db.prepare(`
+    UPDATE spiderman_catalog_issues
+    SET antagonists_json = ?
+    WHERE fandom_page_id = ?
+  `).run(JSON.stringify(["Kingpin", "\"Hydra\"", "Mysterio", "Chameleon"]), issues[0].fandomPageId);
 
   const catalogEnemies = db.listCatalogEnemies({ character: "peter-parker-earth-616" });
   assert.equal(catalogEnemies.threshold, 10);
   assert.equal(catalogEnemies.popularThreshold, 100);
   assert.equal(catalogEnemies.groups.find((group) => group.key === "popular").items.some((item) => item.name === "Kingpin" && item.count === 100), true);
+  assert.equal(catalogEnemies.groups.find((group) => group.key === "popular").items.some((item) => item.name === "Hydra" && item.count === 100), true);
   assert.equal(catalogEnemies.groups.find((group) => group.key === "frequent").items.some((item) => item.name === "Mysterio" && item.count === 10), true);
   assert.equal(catalogEnemies.groups.find((group) => group.key === "other").items.some((item) => item.name === "Chameleon" && item.count === 1), true);
   assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "Kingpin" }).total, 100);
+  assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "Hydra" }).total, 100);
   assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "King" }).total, 0);
 
   const comic = db.upsertComic({

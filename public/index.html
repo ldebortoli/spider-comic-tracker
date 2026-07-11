@@ -87,7 +87,13 @@
                 <span data-enemy-selected>Todos los enemigos</span><span aria-hidden="true">⌄</span>
               </button>
               <div class="lazy-enemy-panel hidden">
-                <input type="search" class="lazy-enemy-search" placeholder="Buscar enemigo…" aria-label="Buscar enemigo" />
+                <div class="lazy-enemy-toolbar">
+                  <input type="search" class="lazy-enemy-search" placeholder="Buscar enemigo…" aria-label="Buscar enemigo" />
+                  <select class="lazy-enemy-sort" aria-label="Ordenar enemigos">
+                    <option value="count">Más apariciones</option>
+                    <option value="name">Alfabético</option>
+                  </select>
+                </div>
                 <div class="lazy-enemy-options" role="listbox" tabindex="-1"></div>
                 <p class="lazy-enemy-status muted" aria-live="polite"></p>
               </div>
@@ -268,7 +274,13 @@
                     <span data-enemy-selected>Todos los enemigos</span><span aria-hidden="true">⌄</span>
                   </button>
                   <div class="lazy-enemy-panel hidden">
-                    <input type="search" class="lazy-enemy-search" placeholder="Buscar enemigo…" aria-label="Buscar enemigo" />
+                    <div class="lazy-enemy-toolbar">
+                      <input type="search" class="lazy-enemy-search" placeholder="Buscar enemigo…" aria-label="Buscar enemigo" />
+                      <select class="lazy-enemy-sort" aria-label="Ordenar enemigos">
+                        <option value="count">Más apariciones</option>
+                        <option value="name">Alfabético</option>
+                      </select>
+                    </div>
                     <div class="lazy-enemy-options" role="listbox" tabindex="-1"></div>
                     <p class="lazy-enemy-status muted" aria-live="polite"></p>
                   </div>

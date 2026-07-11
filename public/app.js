@@ -264,6 +264,7 @@ function createLazyEnemyPicker({ root, input, allLabel, fetchPage }) {
   const selectedLabel = root.querySelector("[data-enemy-selected]");
   const panel = root.querySelector(".lazy-enemy-panel");
   const searchInput = root.querySelector(".lazy-enemy-search");
+  const sortInput = root.querySelector(".lazy-enemy-sort");
   const optionsContainer = root.querySelector(".lazy-enemy-options");
   const status = root.querySelector(".lazy-enemy-status");
   const pageSize = 50;
@@ -377,8 +378,9 @@ function createLazyEnemyPicker({ root, input, allLabel, fetchPage }) {
         ...scopeParams,
         limit: pageSize,
         offset: reset ? 0 : offset,
-        search: searchInput.value.trim(),
-        selected: input.value
+      search: searchInput.value.trim(),
+      selected: input.value,
+      sort: sortInput.value
       });
     } catch (error) {
       if (requestGeneration === generation) loading = false;
@@ -417,6 +419,7 @@ function createLazyEnemyPicker({ root, input, allLabel, fetchPage }) {
 
   trigger.addEventListener("click", () => setOpen(panel.classList.contains("hidden")));
   searchInput.addEventListener("input", resetSearch);
+  sortInput.addEventListener("change", () => resetSearch());
   optionsContainer.addEventListener("scroll", () => {
     const nearEnd = optionsContainer.scrollTop + optionsContainer.clientHeight >= optionsContainer.scrollHeight - 70;
     if (nearEnd) loadMore().catch((error) => { status.textContent = error.message; });

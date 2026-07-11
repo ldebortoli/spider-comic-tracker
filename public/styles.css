@@ -352,8 +352,15 @@ label,
   box-shadow: var(--shadow);
 }
 
-.lazy-enemy-search {
+.lazy-enemy-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.58fr);
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+.lazy-enemy-search,
+.lazy-enemy-sort {
   border-radius: 12px;
 }
 
@@ -1640,6 +1647,10 @@ select:focus {
   .lazy-enemy-panel {
     width: 100%;
     max-width: 100%;
+  }
+
+  .lazy-enemy-toolbar {
+    grid-template-columns: 1fr;
   }
 
   .spanish-filters,
