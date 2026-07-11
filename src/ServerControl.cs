@@ -111,7 +111,7 @@ namespace SpiderTracker
 
             Label note = new Label
             {
-                Text = "Cerrar este panel no apaga el servidor. Usá el botón Apagar.",
+                Text = "Cerrar este panel también apaga el servidor.",
                 ForeColor = Color.FromArgb(150, 171, 196),
                 Location = new Point(32, 280),
                 Size = new Size(456, 22)
@@ -126,6 +126,10 @@ namespace SpiderTracker
             statusTimer = new Timer { Interval = 1500 };
             statusTimer.Tick += delegate { UpdateStatus(); };
             statusTimer.Start();
+            FormClosing += delegate(object sender, FormClosingEventArgs args)
+            {
+                if (!StopServer()) args.Cancel = true;
+            };
             FormClosed += delegate { statusTimer.Stop(); };
 
             UpdateStatus();
@@ -226,19 +230,29 @@ namespace SpiderTracker
             }
         }
 
-        private void StopServer()
+        private bool StopServer()
         {
             try
             {
                 Process process = GetServerProcess();
-                if (process != null && !process.HasExited) process.Kill();
+                if (process != null && !process.HasExited)
+                {
+                    process.Kill();
+                    if (!process.WaitForExit(5000))
+                    {
+                        throw new InvalidOperationException("El servidor no se detuvo dentro del tiempo esperado.");
+                    }
+                }
                 if (File.Exists(pidFile)) File.Delete(pidFile);
             }
             catch (Exception error)
             {
                 MessageBox.Show(error.Message, "Error al apagar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateStatus();
+                return false;
             }
             UpdateStatus();
+            return true;
         }
 
         private void OpenApplication()

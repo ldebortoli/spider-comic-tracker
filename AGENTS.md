@@ -9,3 +9,5 @@ Before project work, read in order: `.codex/CONTEXT.md`, `DECISIONS.md`, `BACKLO
 ## Automatic user queue execution
 
 `Procesadas` in `.codex/USER_QUEUE.md` means incorporated into `BACKLOG.md`, not completed. After handling the direct message that starts a run, automatically execute every unblocked queue-derived backlog task by priority. Continue until each is implemented, validated and moved to `DONE`, or record its precise blocker and continue with other executable queued work. Do not stop after triage or after only one queued task unless the user explicitly asks to pause, stop or only report status.
+
+When a desktop UI controls a bot, server or background process, closing that UI must stop the full managed process tree before destroying the window whenever technically feasible. Any exception must be recorded inline as blocked in project memory.

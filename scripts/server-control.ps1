@@ -87,7 +87,7 @@ $startButton.BackColor = [System.Drawing.Color]::FromArgb(20, 116, 91)
 $stopButton.BackColor = [System.Drawing.Color]::FromArgb(180, 45, 64)
 
 $noteLabel = New-Object System.Windows.Forms.Label
-$noteLabel.Text = "Cerrar este panel no apaga el servidor. Usá el botón Apagar."
+$noteLabel.Text = "Cerrar este panel también apaga el servidor."
 $noteLabel.ForeColor = [System.Drawing.Color]::FromArgb(150, 171, 196)
 $noteLabel.Location = New-Object System.Drawing.Point(32, 280)
 $noteLabel.Size = New-Object System.Drawing.Size(456, 22)
@@ -195,6 +195,20 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 1500
 $timer.Add_Tick({ Update-ServerStatus })
 $timer.Start()
+
+$form.Add_FormClosing({
+  try {
+    Stop-TrackerFromPanel
+  } catch {
+    $_.Cancel = $true
+    [System.Windows.Forms.MessageBox]::Show(
+      $_.Exception.Message,
+      "No se pudo apagar el servidor",
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+  }
+})
 
 $form.Add_FormClosed({
   $timer.Stop()
