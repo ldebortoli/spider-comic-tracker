@@ -42,6 +42,46 @@ async function weeklyUpdateRunsBothStepsTest() {
   assert.equal(JSON.parse(state.get("weekly_update_status")).paniniUpdate.matchedProducts, 1);
 }
 
+async function weeklyUpdateCatchesUpMissingWeeksTest() {
+  const state = new Map();
+  const db = {
+    getState(key, fallback) { return state.has(key) ? state.get(key) : fallback; },
+    setState(key, value) { state.set(key, value); },
+    getLastCompletedSyncRun() {
+      return { weekYear: 2025, weekNumber: 51, weekKey: "2025-W51", status: "completed" };
+    }
+  };
+  const service = new ComicTrackerService({ db, config: {} });
+  const reviewed = [];
+  service.performSync = async (options) => {
+    reviewed.push(options);
+    return {
+      weekKey: `${options.weekYear}-W${String(options.weekNumber).padStart(2, "0")}`,
+      processed: 1,
+      added: 1,
+      addedTitles: [`Issue ${options.weekYear}-${options.weekNumber}`]
+    };
+  };
+  service.performCatalogImport = async () => ({ importedComics: 0, existingSkipped: 3, errors: [] });
+  service.performPaniniImport = async () => ({ processedProducts: 0, matchedProducts: 0, errors: [] });
+
+  const result = await service.performWeeklyUpdate({
+    triggerSource: "test",
+    weekYear: 2026,
+    weekNumber: 2
+  });
+
+  assert.deepEqual(
+    reviewed.map(({ weekYear, weekNumber }) => [weekYear, weekNumber]),
+    [[2025, 52], [2026, 1], [2026, 2]]
+  );
+  assert.deepEqual(reviewed.map(({ runSideEffects }) => runSideEffects), [false, false, true]);
+  assert.equal(result.weeklyReview.weeksReviewed, 3);
+  assert.equal(result.weeklyReview.processed, 3);
+  assert.equal(result.weeklyReview.fromWeekKey, "2025-W52");
+  assert.equal(result.weeklyReview.toWeekKey, "2026-W02");
+}
+
 async function quarterlyRefreshTest() {
   const state = new Map();
   const db = {
@@ -118,6 +158,8 @@ async function paniniFailureDoesNotCancelUsaTest() {
 (async () => {
   await weeklyUpdateRunsBothStepsTest();
   console.log("ok - la actualizacion semanal ejecuta revision e importacion incremental");
+  await weeklyUpdateCatchesUpMissingWeeksTest();
+  console.log("ok - la actualizacion semanal recupera semanas faltantes incluso entre años");
   await quarterlyRefreshTest();
   console.log("ok - la revision trimestral actualiza todos los metadatos");
   await quarterlyRefreshScheduleValidationTest();

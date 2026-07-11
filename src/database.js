@@ -758,6 +758,17 @@ class ComicDatabase {
         ORDER BY started_at DESC
         LIMIT 1
       `),
+      lastCompletedSyncRunAtOrBefore: this.db.prepare(`
+        SELECT *
+        FROM sync_runs
+        WHERE status = 'completed'
+          AND (
+            week_year < ?
+            OR (week_year = ? AND week_number <= ?)
+          )
+        ORDER BY week_year DESC, week_number DESC, finished_at DESC
+        LIMIT 1
+      `),
       countPendingReviews: this.db.prepare(`
         SELECT COUNT(*) AS count
         FROM review_queue
@@ -1337,7 +1348,18 @@ class ComicDatabase {
   }
 
   getLastSyncRun() {
-    const row = this.statements.lastSyncRun.get();
+    return this.mapSyncRun(this.statements.lastSyncRun.get());
+  }
+
+  getLastCompletedSyncRun({ weekYear, weekNumber }) {
+    return this.mapSyncRun(this.statements.lastCompletedSyncRunAtOrBefore.get(
+      Number(weekYear),
+      Number(weekYear),
+      Number(weekNumber)
+    ));
+  }
+
+  mapSyncRun(row) {
 
     if (!row) {
       return null;

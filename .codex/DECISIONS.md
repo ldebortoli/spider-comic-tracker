@@ -36,3 +36,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: construir el dropdown completo por personaje y universo, agruparlo desde 10 apariciones y cachearlo durante cinco minutos; los demas filtros no vuelven a descargar ni renderizar sus miles de opciones.
 - Motivo: el listado de enemigos es una faceta del alcance elegido y reconstruirlo ante cada cambio de texto, fecha, orden o coleccion bloqueaba innecesariamente la interfaz.
+
+## D-006 - La revision semanal recupera semanas faltantes
+
+- Estado: vigente.
+- Fecha: 2026-07-11.
+- Decision: antes de revisar novedades, buscar la ultima `sync_run` completada y procesar en orden cada semana ISO posterior hasta la actual; una corrida fallida no mueve el punto de corte. Si no existe una corrida completada previa, comenzar en la semana vigente.
+- Motivo: una PC apagada o un servidor detenido durante varias semanas no debe producir huecos en el seguimiento.

@@ -7,7 +7,73 @@ const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
 const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
 const { importPaniniCatalog } = require("./panini");
 const { importUniversoMarvelCatalog } = require("./universo-marvel");
-const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex } = require("./utils");
+const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex, uniqueStrings } = require("./utils");
+
+function isLeapYear(year) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function isoWeeksInYear(year) {
+  const januaryFirstDay = new Date(Date.UTC(year, 0, 1)).getUTCDay();
+  return januaryFirstDay === 4 || (januaryFirstDay === 3 && isLeapYear(year)) ? 53 : 52;
+}
+
+function compareIsoWeeks(left, right) {
+  if (left.weekYear !== right.weekYear) return left.weekYear - right.weekYear;
+  return left.weekNumber - right.weekNumber;
+}
+
+function nextIsoWeek(week) {
+  if (week.weekNumber < isoWeeksInYear(week.weekYear)) {
+    return { weekYear: week.weekYear, weekNumber: week.weekNumber + 1 };
+  }
+  return { weekYear: week.weekYear + 1, weekNumber: 1 };
+}
+
+function buildCatchUpWeeks(lastCompleted, target) {
+  if (!lastCompleted || compareIsoWeeks(lastCompleted, target) >= 0) {
+    return [{ ...target, weekKey: buildWeekKey(target.weekYear, target.weekNumber) }];
+  }
+
+  const weeks = [];
+  let cursor = nextIsoWeek(lastCompleted);
+  while (compareIsoWeeks(cursor, target) <= 0) {
+    weeks.push({ ...cursor, weekKey: buildWeekKey(cursor.weekYear, cursor.weekNumber) });
+    cursor = nextIsoWeek(cursor);
+  }
+  return weeks;
+}
+
+function aggregateWeeklyReviews(weekSummaries) {
+  const first = weekSummaries[0] || {};
+  const last = weekSummaries[weekSummaries.length - 1] || {};
+  const numericFields = [
+    "processed",
+    "added",
+    "rejected",
+    "pendingReview",
+    "alreadyIncluded",
+    "alreadyRejected",
+    "pendingAlreadyOpen",
+    "errors"
+  ];
+  const titleFields = ["addedTitles", "rejectedTitles", "pendingTitles", "erroredTitles"];
+  const summary = {
+    weekKey: last.weekKey || "",
+    fromWeekKey: first.weekKey || "",
+    toWeekKey: last.weekKey || "",
+    weeksReviewed: weekSummaries.length,
+    weekSummaries
+  };
+
+  for (const field of numericFields) {
+    summary[field] = weekSummaries.reduce((total, item) => total + Number(item[field] || 0), 0);
+  }
+  for (const field of titleFields) {
+    summary[field] = uniqueStrings(weekSummaries.flatMap((item) => item[field] || []));
+  }
+  return summary;
+}
 
 function isIncludedDecision(decision) {
   return decision === "auto_added" || decision === "manual_added";
@@ -852,6 +918,20 @@ class ComicTrackerService {
     }
   }
 
+  getWeeklyReviewPlan(weekYear, weekNumber) {
+    const target = { weekYear: Number(weekYear), weekNumber: Number(weekNumber) };
+    const lastCompleted = typeof this.db.getLastCompletedSyncRun === "function"
+      ? this.db.getLastCompletedSyncRun(target)
+      : null;
+    const weeks = buildCatchUpWeeks(lastCompleted, target);
+    return {
+      lastCompleted,
+      weeks,
+      fromWeekKey: weeks[0].weekKey,
+      toWeekKey: weeks[weeks.length - 1].weekKey
+    };
+  }
+
   startWeeklyUpdate({ triggerSource = "scheduled", weekYear, weekNumber } = {}) {
     if (this.currentWeeklyUpdatePromise || this.currentSyncPromise || this.currentCatalogImportPromise || this.currentPaniniImportPromise) {
       return { started: false, running: true };
@@ -861,23 +941,36 @@ class ComicTrackerService {
     const finalWeekYear = weekYear || nowWeek.isoYear;
     const finalWeekNumber = weekNumber || nowWeek.weekNumber;
     const weekKey = buildWeekKey(finalWeekYear, finalWeekNumber);
+    const reviewPlan = this.getWeeklyReviewPlan(finalWeekYear, finalWeekNumber);
     this.db.setState("last_scheduled_attempt_week_key", weekKey);
 
     this.currentWeeklyUpdatePromise = this.performWeeklyUpdate({
       triggerSource,
       weekYear: finalWeekYear,
-      weekNumber: finalWeekNumber
+      weekNumber: finalWeekNumber,
+      reviewWeeks: reviewPlan.weeks
     }).catch((error) => {
       console.error("Error en actualización semanal completa:", error);
     }).finally(() => {
       this.currentWeeklyUpdatePromise = null;
     });
 
-    return { started: true, running: true, weekYear: finalWeekYear, weekNumber: finalWeekNumber, weekKey };
+    return {
+      started: true,
+      running: true,
+      weekYear: finalWeekYear,
+      weekNumber: finalWeekNumber,
+      weekKey,
+      fromWeekKey: reviewPlan.fromWeekKey,
+      weeksPlanned: reviewPlan.weeks.length
+    };
   }
 
-  async performWeeklyUpdate({ triggerSource, weekYear, weekNumber }) {
+  async performWeeklyUpdate({ triggerSource, weekYear, weekNumber, reviewWeeks }) {
     const weekKey = buildWeekKey(weekYear, weekNumber);
+    const plannedWeeks = reviewWeeks?.length
+      ? reviewWeeks
+      : this.getWeeklyReviewPlan(weekYear, weekNumber).weeks;
     const startedAt = nowIso();
     this.saveWeeklyUpdateStatus({
       running: true,
@@ -885,15 +978,43 @@ class ComicTrackerService {
       stage: "weekly_review",
       triggerSource,
       weekKey,
+      fromWeekKey: plannedWeeks[0].weekKey,
+      reviewWeeks: plannedWeeks.map((week) => week.weekKey),
+      completedReviewWeeks: 0,
+      currentReviewWeekKey: plannedWeeks[0].weekKey,
       startedAt,
       finishedAt: "",
       errorMessage: ""
     });
 
     try {
-      this.currentSyncPromise = this.performSync({ triggerSource, weekYear, weekNumber });
-      const weeklyReview = await this.currentSyncPromise;
-      this.currentSyncPromise = null;
+      const reviewSummaries = [];
+      for (let index = 0; index < plannedWeeks.length; index += 1) {
+        const reviewWeek = plannedWeeks[index];
+        this.saveWeeklyUpdateStatus({
+          running: true,
+          status: "running",
+          stage: "weekly_review",
+          triggerSource,
+          weekKey,
+          fromWeekKey: plannedWeeks[0].weekKey,
+          reviewWeeks: plannedWeeks.map((week) => week.weekKey),
+          completedReviewWeeks: index,
+          currentReviewWeekKey: reviewWeek.weekKey,
+          startedAt,
+          finishedAt: "",
+          errorMessage: ""
+        });
+        this.currentSyncPromise = this.performSync({
+          triggerSource,
+          weekYear: reviewWeek.weekYear,
+          weekNumber: reviewWeek.weekNumber,
+          runSideEffects: index === plannedWeeks.length - 1
+        });
+        reviewSummaries.push(await this.currentSyncPromise);
+        this.currentSyncPromise = null;
+      }
+      const weeklyReview = aggregateWeeklyReviews(reviewSummaries);
 
       this.saveWeeklyUpdateStatus({
         running: true,
@@ -901,6 +1022,10 @@ class ComicTrackerService {
         stage: "catalog_update",
         triggerSource,
         weekKey,
+        fromWeekKey: plannedWeeks[0].weekKey,
+        reviewWeeks: plannedWeeks.map((week) => week.weekKey),
+        completedReviewWeeks: plannedWeeks.length,
+        currentReviewWeekKey: "",
         startedAt,
         finishedAt: "",
         errorMessage: "",
@@ -917,6 +1042,10 @@ class ComicTrackerService {
         stage: "panini_update",
         triggerSource,
         weekKey,
+        fromWeekKey: plannedWeeks[0].weekKey,
+        reviewWeeks: plannedWeeks.map((week) => week.weekKey),
+        completedReviewWeeks: plannedWeeks.length,
+        currentReviewWeekKey: "",
         startedAt,
         finishedAt: "",
         errorMessage: "",
@@ -948,6 +1077,10 @@ class ComicTrackerService {
         stage: "completed",
         triggerSource,
         weekKey,
+        fromWeekKey: plannedWeeks[0].weekKey,
+        reviewWeeks: plannedWeeks.map((week) => week.weekKey),
+        completedReviewWeeks: plannedWeeks.length,
+        currentReviewWeekKey: "",
         startedAt,
         finishedAt: nowIso(),
         errorMessage: "",
@@ -1077,7 +1210,7 @@ class ComicTrackerService {
     }
   }
 
-  async performSync({ triggerSource, weekYear, weekNumber }) {
+  async performSync({ triggerSource, weekYear, weekNumber, runSideEffects = true }) {
     const runId = this.db.createSyncRun({ weekYear, weekNumber, triggerSource });
     const summary = {
       weekKey: buildWeekKey(weekYear, weekNumber),
@@ -1149,23 +1282,25 @@ class ComicTrackerService {
         summary
       });
 
-      try {
-        await this.maybeSendPeriodicBackup({
-          triggerSource,
-          weekYear,
-          weekNumber
-        });
-      } catch (backupError) {
-        console.error("Error generando o enviando backup:", backupError);
-      }
+      if (runSideEffects) {
+        try {
+          await this.maybeSendPeriodicBackup({
+            triggerSource,
+            weekYear,
+            weekNumber
+          });
+        } catch (backupError) {
+          console.error("Error generando o enviando backup:", backupError);
+        }
 
-      if (this.telegram && this.telegram.canSendSummary()) {
-        await this.telegram.sendSummary({
-          ...summary,
-          triggerSource,
-          weekYear,
-          weekNumber
-        });
+        if (this.telegram && this.telegram.canSendSummary()) {
+          await this.telegram.sendSummary({
+            ...summary,
+            triggerSource,
+            weekYear,
+            weekNumber
+          });
+        }
       }
 
       this.clearEnemyOptionCache();
@@ -1177,7 +1312,7 @@ class ComicTrackerService {
         errorMessage: error.message
       });
 
-      if (this.telegram && this.telegram.canSendSummary()) {
+      if (runSideEffects && this.telegram && this.telegram.canSendSummary()) {
         await this.telegram.sendSummary({
           ...summary,
           triggerSource,

@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tarea activa. Ultima tarea completada: optimizacion del dropdown de enemigos y cambio de sus grupos a 10 o mas apariciones / menos de 10.
+Sin tarea activa. Ultima tarea completada: recuperacion automatica de semanas faltantes desde la ultima revision completada hasta la semana ISO actual.
 
 ## Estado actual
 
@@ -20,7 +20,9 @@ Sin tarea activa. Ultima tarea completada: optimizacion del dropdown de enemigos
 - `listCatalogEnemies` agrega antagonistas con `json_each` en SQLite y reutiliza un `Intl.Collator`; el servicio cachea opciones cinco minutos y la UI solo las recarga cuando cambia personaje o universo.
 - `scripts/backfill-catalog-enemies.js` completo el backfill de 11.248 fichas el 2026-07-11 sin errores; `npm run repair:enemies` lo puede repetir.
 - Parser y capa de base limpian notas de plantillas de antagonistas antes de guardar.
-- El servidor local fue reiniciado y quedo encendido en `http://localhost:8787` con PID detectado 24888 durante esta sesion.
+- La revision semanal consulta `Category:Week_##,_YYYY` en Marvel Fandom para cada semana faltante, en orden; usa la ultima `sync_run` completada como corte y cruza correctamente cambios de año ISO.
+- Las semanas recuperadas ejecutan una sola vez al final la importacion incremental historica y la revision de fuentes españolas; backups/resumenes Telegram tampoco se repiten por cada semana atrasada.
+- El servidor local fue reiniciado y quedo encendido en `http://localhost:8787` con PID detectado 23840 durante esta sesion.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos

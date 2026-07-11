@@ -19,7 +19,7 @@ Aplicacion local para catalogar las apariciones historicas de Spider-Man/Peter P
 - Incluye buscador, filtros de colección/aparición/fecha, orden cronológico predeterminado, tamaño de página configurable y paginación arriba y abajo.
 - Muestra en cada issue los personajes que aparecen dentro de la lista o categoría seleccionada.
 - Exporta todo el catalogo y el estado de la coleccion a CSV desde la interfaz.
-- Revisa una vez por semana la categoria de Marvel Fandom `Category:Week_##,_YYYY`.
+- Revisa las categorias semanales de Marvel Fandom `Category:Week_##,_YYYY` desde la semana posterior a la ultima revision completada hasta la actual.
 - Extrae titulo, URL de la ficha, fecha de publicacion, tapa y personajes detectados.
 - Organiza cada comic dentro de su volumen correspondiente.
 - Distingue entre material nuevo, reediciones claras y casos dudosos.
@@ -103,7 +103,7 @@ El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.
 
-La actualización automática semanal ejecuta tres pasos secuenciales: revisa la semana USA actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de las fuentes españolas. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
+La actualización automática semanal ejecuta tres pasos secuenciales: recupera en orden todas las semanas USA posteriores a la ultima revisión completada hasta la actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de las fuentes españolas. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
 
 El horario tambien se puede activar, desactivar o modificar desde **Configuración**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
@@ -165,7 +165,7 @@ La fuente usada son las categorias de apariciones de Marvel Database. El catalog
 - Los backups locales comprimidos quedan en `data/backups`.
 - Los comics aceptados se muestran agrupados por volumen en la UI.
 - La primera lista de personajes viene precargada con cobertura amplia para Spider-Man de distintos universos, simbiontes, Black Cat, Knull, Spider-Boy, Mary Jane y Gwen Stacy. Se puede editar desde la UI.
-- El flujo actual arranca en la semana vigente y solo revisa la semana actual. El backfill de comics viejos se hara en un proceso separado mas adelante.
+- Si todavía no existe ninguna revisión semanal completada, la primera ejecución toma la semana vigente como punto inicial. A partir de ahí, cada ejecución recupera cualquier semana faltante, incluso al cambiar de año ISO.
 - La UI no fuerza auto-refresh luego de una corrida. Queda a proposito un boton `Actualizar vista`, como pediste.
 - Si Telegram no esta configurado, los casos ambiguos quedan como pendientes en la base, pero no se manda notificacion.
 - Los pendientes se pueden aprobar o rechazar directamente desde la pagina. Si Telegram esta configurado, el servidor mantiene encendido el bot Python por polling y refleja tambien las decisiones tomadas desde la web.

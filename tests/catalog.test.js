@@ -522,6 +522,20 @@ function weeklyApprovalScopesTest() {
   db.close();
 }
 
+function lastCompletedSyncRunTest() {
+  const db = new ComicDatabase(":memory:");
+  const completed2025 = db.createSyncRun({ weekYear: 2025, weekNumber: 51, triggerSource: "test" });
+  db.finishSyncRun(completed2025, { status: "completed", summary: {}, errorMessage: "" });
+  const failed2025 = db.createSyncRun({ weekYear: 2025, weekNumber: 52, triggerSource: "test" });
+  db.finishSyncRun(failed2025, { status: "failed", summary: {}, errorMessage: "fallo" });
+  const completed2026 = db.createSyncRun({ weekYear: 2026, weekNumber: 1, triggerSource: "test" });
+  db.finishSyncRun(completed2026, { status: "completed", summary: {}, errorMessage: "" });
+
+  assert.equal(db.getLastCompletedSyncRun({ weekYear: 2025, weekNumber: 52 }).weekKey, "2025-W51");
+  assert.equal(db.getLastCompletedSyncRun({ weekYear: 2026, weekNumber: 2 }).weekKey, "2026-W01");
+  db.close();
+}
+
 function futureIssuesStayHiddenTest() {
   const db = new ComicDatabase(":memory:");
   db.upsertCatalogIssues([{
@@ -563,6 +577,7 @@ const tests = [
   ["Panini no duplica productos y prioriza el tomo con más páginas", paniniPreferenceTest],
   ["una revision web se resuelve una sola vez", webReviewDecisionTest],
   ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest],
+  ["ubica la ultima semana completada sin avanzar por corridas fallidas", lastCompletedSyncRunTest],
   ["oculta issues futuros hasta su fecha de publicacion", futureIssuesStayHiddenTest]
 ];
 

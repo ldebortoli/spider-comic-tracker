@@ -55,6 +55,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Scrapers/parsers principales: `src/catalog.js`, `src/marvel.js`, `src/panini.js`, `src/universo-marvel.js`.
 - Datos historicos USA: `spiderman_catalog_issues`, `catalog_characters`, `catalog_character_issues`.
 - Seguimiento semanal: `comics`, `volumes`, `comic_characters`, `review_queue`, `sync_runs`.
+- La revision semanal recupera categorias `Category:Week_##,_YYYY` desde la semana posterior a la ultima `sync_run` completada hasta la semana ISO actual.
 - Ediciones en espanol: `spanish_editions`, `spanish_edition_issues`, `panini_products`.
 
 ## Convenciones

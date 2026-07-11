@@ -469,7 +469,10 @@ function renderStats() {
       catalog_update: "actualizando listas históricas USA",
       panini_update: "revisando Panini"
     })[weeklyUpdate.stage] || "revisando la semana";
-    elements.weeklyUpdateMeta.textContent = `Actualización semanal en curso: ${stage}. ${taskLabel}.`;
+    const reviewProgress = weeklyUpdate.stage === "weekly_review" && weeklyUpdate.reviewWeeks?.length
+      ? ` ${Number(weeklyUpdate.completedReviewWeeks || 0) + 1} de ${weeklyUpdate.reviewWeeks.length}: ${weeklyUpdate.currentReviewWeekKey}.`
+      : "";
+    elements.weeklyUpdateMeta.textContent = `Actualización semanal en curso: ${stage}.${reviewProgress} ${taskLabel}.`;
   } else if (weeklyUpdate.status === "failed") {
     elements.weeklyUpdateMeta.textContent = `Última actualización automática fallida: ${formatDateTime(weeklyUpdate.finishedAt)}. ${weeklyUpdate.errorMessage || "Error sin detalle"}`;
   } else if (weeklyUpdate.finishedAt) {
@@ -1863,13 +1866,13 @@ async function pollCatalogImport() {
 
 async function triggerSync() {
   const confirmed = await askConfirmation({
-    title: "Revisar semana actual",
-    message: "Se van a revisar las novedades USA de la semana y después las fuentes españolas vinculadas. Puede consultar Marvel Fandom, Panini/Fichas Universo Marvel y tardar varios minutos. ¿Continuar?"
+    title: "Revisar semanas pendientes",
+    message: "Se van a recuperar en orden todas las semanas posteriores a la última revisión completada hasta la actual. Después se actualizarán una vez el catálogo USA y las fuentes españolas vinculadas. Puede consultar Marvel Fandom, Panini/Fichas Universo Marvel y tardar varios minutos. ¿Continuar?"
   });
   if (!confirmed) return;
 
   elements.syncButton.disabled = true;
-  setSyncStatus("Revisando semana actual...");
+  setSyncStatus("Calculando y revisando semanas pendientes...");
 
   try {
     const result = await api("/api/sync", {
@@ -1879,6 +1882,8 @@ async function triggerSync() {
 
     if (!result.started) {
       setSyncStatus("Ya hay una sincronización corriendo");
+    } else if (result.weeksPlanned > 1) {
+      setSyncStatus(`Recuperando ${result.weeksPlanned} semanas: ${result.fromWeekKey} a ${result.weekKey}`);
     } else {
       setSyncStatus(`Actualización USA + Panini lanzada para ${result.weekKey}`);
     }
