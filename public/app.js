@@ -259,10 +259,12 @@ function renderEnemySelect(select, options, selectedValue, allLabel) {
     return false;
   }
 
-  const selectedExists = !selectedValue || (options.items || []).some((item) => item.name === selectedValue);
+  const optionGroups = (options.groups || []).filter((group) => (group.items || []).length);
+  const selectedExists = !selectedValue || optionGroups.some(
+    (group) => group.items.some((item) => item.name === selectedValue)
+  );
   const safeSelected = selectedExists ? selectedValue : "";
-  const groups = (options.groups || [])
-    .filter((group) => (group.items || []).length)
+  const groups = optionGroups
     .map((group) => `
       <optgroup label="${escapeHtml(group.label)}">
         ${(group.items || []).map((item) => `
@@ -1689,9 +1691,10 @@ async function loadCatalogStats() {
 }
 
 async function loadCatalogEnemies() {
-  const filters = { ...state.catalog.filters };
-  delete filters.enemy;
-  const params = new URLSearchParams(filters);
+  const params = new URLSearchParams({
+    character: state.catalog.filters.character,
+    universeGroup: state.catalog.filters.universeGroup
+  });
   state.catalog.enemyOptions = await api(`/api/catalog/enemies?${params.toString()}`);
   const selectedExists = renderEnemySelect(
     elements.catalogEnemy,
@@ -1754,15 +1757,8 @@ async function loadComics() {
 }
 
 async function loadComicEnemies() {
-  const params = new URLSearchParams();
-
-  for (const [key, value] of Object.entries(state.filters)) {
-    if (value && key !== "enemy") {
-      params.set(key, value);
-    }
-  }
-
-  params.set("scope", "all");
+  const params = new URLSearchParams({ scope: "all" });
+  if (state.filters.character) params.set("character", state.filters.character);
   state.enemyOptions = await api(`/api/comics/enemies?${params.toString()}`);
   const selectedExists = renderEnemySelect(
     elements.enemyInput,
@@ -1946,6 +1942,7 @@ async function triggerPaniniImport() {
 
 function wireFilters() {
   const applyFilters = debounce(async () => {
+    const previousCharacter = state.filters.character;
     state.filters.query = elements.queryInput.value.trim();
     state.filters.character = elements.characterInput.value.trim();
     state.filters.enemy = elements.enemyInput.value.trim();
@@ -1953,7 +1950,9 @@ function wireFilters() {
     state.filters.to = elements.toInput.value;
     state.approvals.recentPage = 0;
     state.approvals.historyPage = 0;
-    await loadComicEnemies();
+    if (state.filters.character !== previousCharacter) {
+      await loadComicEnemies();
+    }
     await loadComics();
   });
 
@@ -1965,6 +1964,7 @@ function wireFilters() {
 
 function wireCatalogFilters() {
   const applyFilters = debounce(async () => {
+    const previousCharacter = state.catalog.filters.character;
     state.catalog.filters.character = elements.catalogCharacter.value || "";
     state.catalog.filters.query = elements.catalogQuery.value.trim();
     state.catalog.filters.enemy = elements.catalogEnemy.value.trim();
@@ -1974,7 +1974,9 @@ function wireCatalogFilters() {
     state.catalog.filters.from = elements.catalogFrom.value;
     state.catalog.filters.to = elements.catalogTo.value;
     state.catalog.offset = 0;
-    await loadCatalogEnemies();
+    if (state.catalog.filters.character !== previousCharacter) {
+      await loadCatalogEnemies();
+    }
     await Promise.all([loadCatalogStats(), loadCatalog()]);
   });
 

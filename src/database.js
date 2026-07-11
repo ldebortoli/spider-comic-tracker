@@ -12,7 +12,8 @@ const {
   uniqueStrings
 } = require("./utils");
 
-const MAJOR_ENEMY_APPEARANCE_THRESHOLD = 100;
+const MAJOR_ENEMY_APPEARANCE_THRESHOLD = 10;
+const ENEMY_NAME_COLLATOR = new Intl.Collator("es", { sensitivity: "base" });
 
 function addEnemyCount(counts, rawName, increment = 1) {
   const name = String(rawName || "").trim();
@@ -28,7 +29,7 @@ function addEnemyCount(counts, rawName, increment = 1) {
 }
 
 function buildEnemyOptionGroups(counts) {
-  const sortByName = (a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+  const sortByName = (a, b) => ENEMY_NAME_COLLATOR.compare(a.name, b.name);
   const items = [...counts.values()].sort(sortByName);
   const major = items
     .filter((item) => item.count >= MAJOR_ENEMY_APPEARANCE_THRESHOLD)
@@ -40,7 +41,6 @@ function buildEnemyOptionGroups(counts) {
   return {
     threshold: MAJOR_ENEMY_APPEARANCE_THRESHOLD,
     total: items.length,
-    items,
     groups: [
       {
         key: "major",
@@ -2028,25 +2028,45 @@ class ComicDatabase {
     }
 
     const rows = this.db.prepare(`
-      SELECT i.id, i.antagonists_json
-      FROM catalog_characters c
-      JOIN catalog_character_issues ci ON ci.character_id = c.id
-      JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
-      WHERE ${conditions.join(" AND ")}
-      GROUP BY i.id
+      WITH scoped_issues AS (
+        SELECT DISTINCT i.id, i.antagonists_json
+        FROM catalog_characters c
+        JOIN catalog_character_issues ci ON ci.character_id = c.id
+        JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
+        WHERE ${conditions.join(" AND ")}
+      )
+      SELECT
+        scoped_issues.id AS issue_id,
+        MIN(trim(enemy.value)) AS name
+      FROM scoped_issues
+      JOIN json_each(
+        CASE
+          WHEN json_valid(scoped_issues.antagonists_json) THEN scoped_issues.antagonists_json
+          ELSE '[]'
+        END
+      ) enemy
+      WHERE enemy.type = 'text'
+        AND trim(enemy.value) != ''
+      GROUP BY scoped_issues.id, lower(trim(enemy.value))
     `).all(...params);
+    const enemyIssues = new Map();
     const counts = new Map();
 
     for (const row of rows) {
-      const seen = new Set();
-      for (const name of safeJsonParse(row.antagonists_json, [])) {
-        const normalized = normalizeText(name);
-        if (!normalized || seen.has(normalized)) {
-          continue;
-        }
-        seen.add(normalized);
-        addEnemyCount(counts, name);
+      const name = String(row.name || "").trim();
+      const normalized = normalizeText(name);
+      if (!normalized) continue;
+
+      const current = enemyIssues.get(normalized) || { name, issueIds: new Set() };
+      current.issueIds.add(Number(row.issue_id));
+      if (ENEMY_NAME_COLLATOR.compare(name, current.name) < 0) {
+        current.name = name;
       }
+      enemyIssues.set(normalized, current);
+    }
+
+    for (const enemy of enemyIssues.values()) {
+      addEnemyCount(counts, enemy.name, enemy.issueIds.size);
     }
 
     return buildEnemyOptionGroups(counts);

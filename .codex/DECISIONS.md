@@ -29,3 +29,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: el catalogo y el seguimiento semanal guardan antagonistas para filtrar por enemigo, pero las importaciones nuevas siguen descubriendo comics exclusivamente desde los personajes/listas seguidos.
 - Motivo: evita ampliar el alcance por enemigos y mantiene estable la cobertura definida por el usuario.
+
+## D-005 - Las opciones de enemigos dependen solo del alcance de personajes
+
+- Estado: vigente.
+- Fecha: 2026-07-11.
+- Decision: construir el dropdown completo por personaje y universo, agruparlo desde 10 apariciones y cachearlo durante cinco minutos; los demas filtros no vuelven a descargar ni renderizar sus miles de opciones.
+- Motivo: el listado de enemigos es una faceta del alcance elegido y reconstruirlo ante cada cambio de texto, fecha, orden o coleccion bloqueaba innecesariamente la interfaz.

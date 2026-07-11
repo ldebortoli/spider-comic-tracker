@@ -24,6 +24,16 @@ const systemMonitor = new SystemMonitor({ dataDir: path.dirname(config.dbPath), 
 const automationManager = new AutomationManager({ config, projectRoot: process.cwd() });
 const envPath = path.join(process.cwd(), ".env");
 
+service.listCatalogEnemies({
+  character: "peter-parker-earth-616",
+  universeGroup: "main",
+  query: "",
+  ownership: "all",
+  appearance: "all",
+  from: "",
+  to: ""
+});
+
 service.attachTelegram(telegram);
 service.startScheduler();
 telegram.start();

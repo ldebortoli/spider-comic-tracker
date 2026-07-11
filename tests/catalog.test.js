@@ -311,6 +311,7 @@ function enemyDropdownGroupsAndFiltersTest() {
   })));
 
   const catalogEnemies = db.listCatalogEnemies({ character: "peter-parker-earth-616" });
+  assert.equal(catalogEnemies.threshold, 10);
   assert.equal(catalogEnemies.groups[0].items.some((item) => item.name === "Kingpin" && item.count === 100), true);
   assert.equal(catalogEnemies.groups[1].items.some((item) => item.name === "Chameleon" && item.count === 1), true);
   assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "Kingpin" }).total, 100);

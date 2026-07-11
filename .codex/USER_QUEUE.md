@@ -1,7 +1,7 @@
 ﻿# Pendientes
 
-No hay pedidos sin procesar.
+No hay pedidos pendientes.
 
 # Procesadas
 
-No hay pedidos procesados registrados.
+- [2026-07-11] Cambiar la agrupacion de enemigos de 100+ a 10+ apariciones. Incorporado en BACKLOG.md.

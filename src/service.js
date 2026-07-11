@@ -41,6 +41,7 @@ class ComicTrackerService {
     this.currentWeeklyUpdatePromise = null;
     this.currentQuarterlyRefreshPromise = null;
     this.schedulerHandle = null;
+    this.enemyOptionCache = new Map();
   }
 
   attachTelegram(telegram) {
@@ -310,7 +311,7 @@ class ComicTrackerService {
   }
 
   listComicEnemies(filters) {
-    return this.db.listComicEnemies(filters);
+    return this.getCachedEnemyOptions("comics", filters, () => this.db.listComicEnemies(filters));
   }
 
   listCatalogIssues(filters) {
@@ -318,7 +319,28 @@ class ComicTrackerService {
   }
 
   listCatalogEnemies(filters) {
-    return this.db.listCatalogEnemies(filters);
+    return this.getCachedEnemyOptions("catalog", filters, () => this.db.listCatalogEnemies(filters));
+  }
+
+  getCachedEnemyOptions(scope, filters, loader) {
+    const key = `${scope}:${JSON.stringify(filters || {})}`;
+    const cached = this.enemyOptionCache.get(key);
+    const maxAgeMs = 5 * 60 * 1000;
+
+    if (cached && Date.now() - cached.createdAt < maxAgeMs) {
+      return cached.value;
+    }
+
+    const value = loader();
+    this.enemyOptionCache.set(key, { createdAt: Date.now(), value });
+    if (this.enemyOptionCache.size > 40) {
+      this.enemyOptionCache.delete(this.enemyOptionCache.keys().next().value);
+    }
+    return value;
+  }
+
+  clearEnemyOptionCache() {
+    this.enemyOptionCache.clear();
   }
 
   listCatalogCharacters() {
@@ -574,7 +596,9 @@ class ComicTrackerService {
   }
 
   updateCatalogCollection(id, payload) {
-    return this.db.updateCatalogCollection(id, payload);
+    const result = this.db.updateCatalogCollection(id, payload);
+    this.clearEnemyOptionCache();
+    return result;
   }
 
   startCatalogImport({ characterSlug = "", incremental = false } = {}) {
@@ -655,6 +679,7 @@ class ComicTrackerService {
         incremental,
         startingFrom: characterSlug ? characters[0]?.lastComicDate || "" : ""
       };
+      this.clearEnemyOptionCache();
       saveProgress(finalStatus);
       if (!characterSlug && !incremental) {
         this.db.setState("catalog_full_refresh_last_at", finalStatus.finishedAt || nowIso());
@@ -1143,6 +1168,7 @@ class ComicTrackerService {
         });
       }
 
+      this.clearEnemyOptionCache();
       return summary;
     } catch (error) {
       this.db.finishSyncRun(runId, {
@@ -1167,7 +1193,9 @@ class ComicTrackerService {
   }
 
   resolveReview(reviewId, action, user) {
-    return this.db.resolveReviewDecision(reviewId, action, user);
+    const result = this.db.resolveReviewDecision(reviewId, action, user);
+    this.clearEnemyOptionCache();
+    return result;
   }
 
   getRuntimeStatus() {
