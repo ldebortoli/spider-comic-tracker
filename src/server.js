@@ -288,6 +288,11 @@ const server = http.createServer(async (request, response) => {
         character: url.searchParams.get("character") || "",
         from: url.searchParams.get("from") || "",
         to: url.searchParams.get("to") || ""
+      }, {
+        limit: url.searchParams.get("limit") || "50",
+        offset: url.searchParams.get("offset") || "0",
+        search: url.searchParams.get("search") || "",
+        selected: url.searchParams.get("selected") || ""
       }));
       return;
     }
@@ -327,6 +332,11 @@ const server = http.createServer(async (request, response) => {
         appearance: url.searchParams.get("appearance") || "all",
         from: url.searchParams.get("from") || "",
         to: url.searchParams.get("to") || ""
+      }, {
+        limit: url.searchParams.get("limit") || "50",
+        offset: url.searchParams.get("offset") || "0",
+        search: url.searchParams.get("search") || "",
+        selected: url.searchParams.get("selected") || ""
       }));
       return;
     }

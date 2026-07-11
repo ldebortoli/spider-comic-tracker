@@ -294,11 +294,127 @@ dialog[open] {
   gap: 12px;
 }
 
-label {
+label,
+.filter-field {
   display: grid;
   gap: 8px;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.lazy-enemy-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.lazy-enemy-trigger {
+  width: 100%;
+  min-height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  color: var(--text);
+  background: #172233;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lazy-enemy-trigger:focus-visible,
+.lazy-enemy-picker.is-open .lazy-enemy-trigger {
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.08);
+  outline: none;
+}
+
+.lazy-enemy-trigger [data-enemy-selected] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lazy-enemy-panel {
+  position: absolute;
+  z-index: 120;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max(100%, 340px);
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #101b2a;
+  box-shadow: var(--shadow);
+}
+
+.lazy-enemy-search {
+  margin-bottom: 8px;
+  border-radius: 12px;
+}
+
+.lazy-enemy-options {
+  max-height: 310px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.lazy-enemy-group + .lazy-enemy-group {
+  margin-top: 8px;
+}
+
+.lazy-enemy-group-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: block;
+  padding: 7px 9px;
+  color: #7dd3fc;
+  background: #101b2a;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lazy-enemy-option {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lazy-enemy-option:hover,
+.lazy-enemy-option:focus-visible,
+.lazy-enemy-option.is-selected {
+  color: #06111a;
+  background: #bae6fd;
+  outline: none;
+}
+
+.lazy-enemy-count {
+  flex: 0 0 auto;
+  color: currentColor;
+  opacity: 0.72;
+}
+
+.lazy-enemy-status {
+  min-height: 1.2em;
+  margin: 8px 4px 0;
+  font-size: 0.8rem;
 }
 
 input,
@@ -1519,6 +1635,11 @@ select:focus {
   .catalog-stats-grid,
   .catalog-filters {
     grid-template-columns: 1fr;
+  }
+
+  .lazy-enemy-panel {
+    width: 100%;
+    max-width: 100%;
   }
 
   .spanish-filters,

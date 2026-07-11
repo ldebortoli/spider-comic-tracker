@@ -43,3 +43,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: antes de revisar novedades, buscar la ultima `sync_run` completada y procesar en orden cada semana ISO posterior hasta la actual; una corrida fallida no mueve el punto de corte. Si no existe una corrida completada previa, comenzar en la semana vigente.
 - Motivo: una PC apagada o un servidor detenido durante varias semanas no debe producir huecos en el seguimiento.
+
+## D-007 - El selector de enemigos se pagina sin perder la cache
+
+- Estado: vigente; complementa D-005.
+- Fecha: 2026-07-11.
+- Decision: conservar en el servidor durante cinco minutos el catalogo completo de enemigos por alcance, pero entregar y renderizar paginas de hasta 50. Priorizar primero 100 apariciones o mas, luego entre 10 y 99 y finalmente menos de 10; cargar paginas adicionales al acercarse al final del scroll y permitir buscar dentro del mismo catalogo.
+- Motivo: evita transferir y crear de una vez mas de ocho mil opciones, mantiene rapido el primer despliegue y conserva una forma practica de encontrar enemigos poco frecuentes.

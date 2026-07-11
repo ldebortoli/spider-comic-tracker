@@ -56,6 +56,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Datos historicos USA: `spiderman_catalog_issues`, `catalog_characters`, `catalog_character_issues`.
 - Seguimiento semanal: `comics`, `volumes`, `comic_characters`, `review_queue`, `sync_runs`.
 - La revision semanal recupera categorias `Category:Week_##,_YYYY` desde la semana posterior a la ultima `sync_run` completada hasta la semana ISO actual.
+- Los endpoints de enemigos conservan una cache completa por personaje/universo, pero la UI consume paginas de hasta 50, priorizadas por frecuencia, y agrega mas opciones al hacer scroll.
 - Ediciones en espanol: `spanish_editions`, `spanish_edition_issues`, `panini_products`.
 
 ## Convenciones

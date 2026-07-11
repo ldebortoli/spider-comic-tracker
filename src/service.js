@@ -7,7 +7,14 @@ const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
 const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
 const { importPaniniCatalog } = require("./panini");
 const { importUniversoMarvelCatalog } = require("./universo-marvel");
-const { buildWeekKey, getIsoWeekInfo, nowIso, scheduleDayIndex, uniqueStrings } = require("./utils");
+const {
+  buildWeekKey,
+  getIsoWeekInfo,
+  normalizeText,
+  nowIso,
+  scheduleDayIndex,
+  uniqueStrings
+} = require("./utils");
 
 function isLeapYear(year) {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
@@ -73,6 +80,42 @@ function aggregateWeeklyReviews(weekSummaries) {
     summary[field] = uniqueStrings(weekSummaries.flatMap((item) => item[field] || []));
   }
   return summary;
+}
+
+function paginateEnemyOptions(options, { limit = 50, offset = 0, search = "", selected = "" } = {}) {
+  const safeLimit = Math.min(50, Math.max(1, Number(limit) || 50));
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const normalizedSearch = normalizeText(search);
+  const allEntries = (options.groups || []).flatMap((group) => (
+    (group.items || []).map((item) => ({ groupKey: group.key, groupLabel: group.label, item }))
+  ));
+  const selectedEntry = selected
+    ? allEntries.find((entry) => entry.item.name === selected)
+    : null;
+  const filteredEntries = normalizedSearch
+    ? allEntries.filter((entry) => normalizeText(entry.item.name).includes(normalizedSearch))
+    : allEntries;
+  const pageEntries = filteredEntries.slice(safeOffset, safeOffset + safeLimit);
+  const groups = (options.groups || []).map((group) => ({
+    key: group.key,
+    label: group.label,
+    items: pageEntries
+      .filter((entry) => entry.groupKey === group.key)
+      .map((entry) => entry.item)
+  })).filter((group) => group.items.length);
+
+  return {
+    threshold: options.threshold,
+    popularThreshold: options.popularThreshold,
+    total: filteredEntries.length,
+    unfilteredTotal: options.total,
+    limit: safeLimit,
+    offset: safeOffset,
+    hasMore: safeOffset + pageEntries.length < filteredEntries.length,
+    selectedExists: !selected || Boolean(selectedEntry),
+    selectedItem: selectedEntry?.item || null,
+    groups
+  };
 }
 
 function isIncludedDecision(decision) {
@@ -376,16 +419,18 @@ class ComicTrackerService {
     return this.db.listIncludedComics(filters);
   }
 
-  listComicEnemies(filters) {
-    return this.getCachedEnemyOptions("comics", filters, () => this.db.listComicEnemies(filters));
+  listComicEnemies(filters, pagination) {
+    const options = this.getCachedEnemyOptions("comics", filters, () => this.db.listComicEnemies(filters));
+    return paginateEnemyOptions(options, pagination);
   }
 
   listCatalogIssues(filters) {
     return this.db.listCatalogIssues(filters);
   }
 
-  listCatalogEnemies(filters) {
-    return this.getCachedEnemyOptions("catalog", filters, () => this.db.listCatalogEnemies(filters));
+  listCatalogEnemies(filters, pagination) {
+    const options = this.getCachedEnemyOptions("catalog", filters, () => this.db.listCatalogEnemies(filters));
+    return paginateEnemyOptions(options, pagination);
   }
 
   getCachedEnemyOptions(scope, filters, loader) {

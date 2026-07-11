@@ -55,6 +55,9 @@ const state = {
   modalScrollY: 0
 };
 
+let catalogEnemyPicker;
+let comicEnemyPicker;
+
 const elements = {
   appTabs: document.querySelectorAll("[data-app-tab]"),
   appTabPanels: document.querySelectorAll("[data-app-tab-panel]"),
@@ -130,6 +133,7 @@ const elements = {
   queryInput: document.querySelector("#query-input"),
   characterInput: document.querySelector("#character-input"),
   enemyInput: document.querySelector("#enemy-input"),
+  comicEnemyPicker: document.querySelector("#comic-enemy-picker"),
   fromInput: document.querySelector("#from-input"),
   toInput: document.querySelector("#to-input"),
   characterForm: document.querySelector("#character-form"),
@@ -150,6 +154,7 @@ const elements = {
   catalogUniverseGroup: document.querySelector("#catalog-universe-group"),
   catalogQuery: document.querySelector("#catalog-query"),
   catalogEnemy: document.querySelector("#catalog-enemy"),
+  catalogEnemyPicker: document.querySelector("#catalog-enemy-picker"),
   catalogFilterNotice: document.querySelector("#catalog-filter-notice"),
   catalogCharacter: document.querySelector("#catalog-character"),
   catalogOwnership: document.querySelector("#catalog-ownership"),
@@ -254,30 +259,195 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function renderEnemySelect(select, options, selectedValue, allLabel) {
-  if (!select) {
-    return false;
+function createLazyEnemyPicker({ root, input, allLabel, fetchPage }) {
+  const trigger = root.querySelector(".lazy-enemy-trigger");
+  const selectedLabel = root.querySelector("[data-enemy-selected]");
+  const panel = root.querySelector(".lazy-enemy-panel");
+  const searchInput = root.querySelector(".lazy-enemy-search");
+  const optionsContainer = root.querySelector(".lazy-enemy-options");
+  const status = root.querySelector(".lazy-enemy-status");
+  const pageSize = 50;
+  let scopeParams = {};
+  let offset = 0;
+  let total = 0;
+  let hasMore = false;
+  let loading = false;
+  let generation = 0;
+  let groups = new Map();
+
+  function setOpen(open) {
+    root.classList.toggle("is-open", open);
+    panel.classList.toggle("hidden", !open);
+    trigger.setAttribute("aria-expanded", String(open));
+    if (open) searchInput.focus();
   }
 
-  const optionGroups = (options.groups || []).filter((group) => (group.items || []).length);
-  const selectedExists = !selectedValue || optionGroups.some(
-    (group) => group.items.some((item) => item.name === selectedValue)
-  );
-  const safeSelected = selectedExists ? selectedValue : "";
-  const groups = optionGroups
-    .map((group) => `
-      <optgroup label="${escapeHtml(group.label)}">
-        ${(group.items || []).map((item) => `
-          <option value="${escapeHtml(item.name)}" ${item.name === safeSelected ? "selected" : ""}>
-            ${escapeHtml(item.name)} (${Number(item.count || 0)})
-          </option>
-        `).join("")}
-      </optgroup>
-    `).join("");
+  function setValue(value, { emit = false } = {}) {
+    input.value = value || "";
+    selectedLabel.textContent = value || allLabel;
+    for (const button of optionsContainer.querySelectorAll(".lazy-enemy-option")) {
+      button.classList.toggle("is-selected", button.dataset.value === input.value);
+      button.setAttribute("aria-selected", String(button.dataset.value === input.value));
+    }
+    if (emit) input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 
-  select.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>${groups}`;
-  select.value = safeSelected;
-  return selectedExists;
+  function addAllOption() {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "lazy-enemy-option";
+    button.dataset.value = "";
+    button.setAttribute("role", "option");
+    button.textContent = allLabel;
+    button.addEventListener("click", () => {
+      setValue("", { emit: true });
+      setOpen(false);
+    });
+    optionsContainer.append(button);
+  }
+
+  function resetOptions() {
+    optionsContainer.replaceChildren();
+    groups = new Map();
+    addAllOption();
+  }
+
+  function appendGroups(nextGroups) {
+    for (const group of nextGroups || []) {
+      let groupEntry = groups.get(group.key);
+      if (!groupEntry) {
+        const section = document.createElement("section");
+        section.className = "lazy-enemy-group";
+        section.dataset.group = group.key;
+        const heading = document.createElement("span");
+        heading.className = "lazy-enemy-group-label";
+        heading.textContent = group.label;
+        const items = document.createElement("div");
+        section.append(heading, items);
+        optionsContainer.append(section);
+        groupEntry = { section, items };
+        groups.set(group.key, groupEntry);
+      }
+
+      for (const item of group.items || []) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "lazy-enemy-option";
+        button.dataset.value = item.name;
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(item.name === input.value));
+        button.classList.toggle("is-selected", item.name === input.value);
+        const name = document.createElement("span");
+        name.textContent = item.name;
+        const count = document.createElement("span");
+        count.className = "lazy-enemy-count";
+        count.textContent = String(Number(item.count || 0));
+        button.append(name, count);
+        button.addEventListener("click", () => {
+          setValue(item.name, { emit: true });
+          setOpen(false);
+        });
+        groupEntry.items.append(button);
+      }
+    }
+  }
+
+  function updateStatus() {
+    if (loading) {
+      status.textContent = "Cargando enemigos…";
+      return;
+    }
+    if (!total) {
+      status.textContent = searchInput.value ? "No hay coincidencias." : "No hay enemigos disponibles.";
+      return;
+    }
+    status.textContent = hasMore
+      ? `Mostrando ${Math.min(offset, total)} de ${total}. Desplazate para cargar más.`
+      : `${total} enemigo${total === 1 ? "" : "s"}.`;
+  }
+
+  async function loadMore({ reset = false } = {}) {
+    if (loading || (!reset && !hasMore)) return null;
+    const requestGeneration = generation;
+    loading = true;
+    updateStatus();
+    let payload;
+    try {
+      payload = await fetchPage({
+        ...scopeParams,
+        limit: pageSize,
+        offset: reset ? 0 : offset,
+        search: searchInput.value.trim(),
+        selected: input.value
+      });
+    } catch (error) {
+      if (requestGeneration === generation) loading = false;
+      throw error;
+    }
+    if (requestGeneration !== generation) return null;
+
+    if (reset) {
+      offset = 0;
+      resetOptions();
+    }
+    appendGroups(payload.groups);
+    const loadedCount = (payload.groups || []).reduce((sum, group) => sum + (group.items || []).length, 0);
+    offset = Number(payload.offset || 0) + loadedCount;
+    total = Number(payload.total || 0);
+    hasMore = Boolean(payload.hasMore);
+    loading = false;
+    if (!payload.selectedExists) setValue("");
+    else if (payload.selectedItem) setValue(payload.selectedItem.name);
+    else setValue(input.value);
+    updateStatus();
+    return payload;
+  }
+
+  const resetSearch = debounce(() => {
+    generation += 1;
+    offset = 0;
+    total = 0;
+    hasMore = true;
+    loading = false;
+    loadMore({ reset: true }).catch((error) => {
+      loading = false;
+      status.textContent = error.message;
+    });
+  }, 220);
+
+  trigger.addEventListener("click", () => setOpen(panel.classList.contains("hidden")));
+  searchInput.addEventListener("input", resetSearch);
+  optionsContainer.addEventListener("scroll", () => {
+    const nearEnd = optionsContainer.scrollTop + optionsContainer.clientHeight >= optionsContainer.scrollHeight - 70;
+    if (nearEnd) loadMore().catch((error) => { status.textContent = error.message; });
+  });
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setOpen(false);
+  });
+  document.addEventListener("click", (event) => {
+    if (!root.contains(event.target)) setOpen(false);
+  });
+
+  return {
+    async reset(nextScopeParams, selectedValue) {
+      generation += 1;
+      scopeParams = { ...nextScopeParams };
+      searchInput.value = "";
+      offset = 0;
+      total = 0;
+      hasMore = true;
+      loading = false;
+      setValue(selectedValue || "");
+      const payload = await loadMore({ reset: true });
+      return {
+        selectedExists: payload?.selectedExists !== false,
+        value: input.value,
+        payload
+      };
+    },
+    setValue,
+    close() { setOpen(false); }
+  };
 }
 
 function normalizeForSearch(value) {
@@ -1694,19 +1864,14 @@ async function loadCatalogStats() {
 }
 
 async function loadCatalogEnemies() {
-  const params = new URLSearchParams({
+  const scope = {
     character: state.catalog.filters.character,
     universeGroup: state.catalog.filters.universeGroup
-  });
-  state.catalog.enemyOptions = await api(`/api/catalog/enemies?${params.toString()}`);
-  const selectedExists = renderEnemySelect(
-    elements.catalogEnemy,
-    state.catalog.enemyOptions,
-    state.catalog.filters.enemy,
-    "Todos los enemigos"
-  );
+  };
+  const result = await catalogEnemyPicker.reset(scope, state.catalog.filters.enemy);
+  state.catalog.enemyOptions = result.payload || { groups: [] };
 
-  if (!selectedExists) {
+  if (!result.selectedExists) {
     state.catalog.filters.enemy = "";
   }
 }
@@ -1760,17 +1925,12 @@ async function loadComics() {
 }
 
 async function loadComicEnemies() {
-  const params = new URLSearchParams({ scope: "all" });
-  if (state.filters.character) params.set("character", state.filters.character);
-  state.enemyOptions = await api(`/api/comics/enemies?${params.toString()}`);
-  const selectedExists = renderEnemySelect(
-    elements.enemyInput,
-    state.enemyOptions,
-    state.filters.enemy,
-    "Todos los enemigos"
-  );
+  const scope = { scope: "all" };
+  if (state.filters.character) scope.character = state.filters.character;
+  const result = await comicEnemyPicker.reset(scope, state.filters.enemy);
+  state.enemyOptions = result.payload || { groups: [] };
 
-  if (!selectedExists) {
+  if (!result.selectedExists) {
     state.filters.enemy = "";
   }
 }
@@ -2224,7 +2384,31 @@ function wireEvents() {
   });
 }
 
+function initializeEnemyPickers() {
+  const fetchEnemyPage = (path) => async (params) => {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== "" && value !== undefined && value !== null) query.set(key, String(value));
+    }
+    return api(`${path}?${query.toString()}`);
+  };
+
+  catalogEnemyPicker = createLazyEnemyPicker({
+    root: elements.catalogEnemyPicker,
+    input: elements.catalogEnemy,
+    allLabel: "Todos los enemigos",
+    fetchPage: fetchEnemyPage("/api/catalog/enemies")
+  });
+  comicEnemyPicker = createLazyEnemyPicker({
+    root: elements.comicEnemyPicker,
+    input: elements.enemyInput,
+    allLabel: "Todos los enemigos",
+    fetchPage: fetchEnemyPage("/api/comics/enemies")
+  });
+}
+
 async function bootstrap() {
+  initializeEnemyPickers();
   wireAppTabs();
   wireEvents();
   wireFilters();

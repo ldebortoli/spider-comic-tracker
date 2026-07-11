@@ -12,7 +12,8 @@ const {
   uniqueStrings
 } = require("./utils");
 
-const MAJOR_ENEMY_APPEARANCE_THRESHOLD = 10;
+const POPULAR_ENEMY_APPEARANCE_THRESHOLD = 100;
+const FREQUENT_ENEMY_APPEARANCE_THRESHOLD = 10;
 const ENEMY_NAME_COLLATOR = new Intl.Collator("es", { sensitivity: "base" });
 
 function addEnemyCount(counts, rawName, increment = 1) {
@@ -31,25 +32,37 @@ function addEnemyCount(counts, rawName, increment = 1) {
 function buildEnemyOptionGroups(counts) {
   const sortByName = (a, b) => ENEMY_NAME_COLLATOR.compare(a.name, b.name);
   const items = [...counts.values()].sort(sortByName);
-  const major = items
-    .filter((item) => item.count >= MAJOR_ENEMY_APPEARANCE_THRESHOLD)
+  const popular = items
+    .filter((item) => item.count >= POPULAR_ENEMY_APPEARANCE_THRESHOLD)
+    .sort(sortByName);
+  const frequent = items
+    .filter((item) => (
+      item.count >= FREQUENT_ENEMY_APPEARANCE_THRESHOLD
+      && item.count < POPULAR_ENEMY_APPEARANCE_THRESHOLD
+    ))
     .sort(sortByName);
   const other = items
-    .filter((item) => item.count < MAJOR_ENEMY_APPEARANCE_THRESHOLD)
+    .filter((item) => item.count < FREQUENT_ENEMY_APPEARANCE_THRESHOLD)
     .sort(sortByName);
 
   return {
-    threshold: MAJOR_ENEMY_APPEARANCE_THRESHOLD,
+    threshold: FREQUENT_ENEMY_APPEARANCE_THRESHOLD,
+    popularThreshold: POPULAR_ENEMY_APPEARANCE_THRESHOLD,
     total: items.length,
     groups: [
       {
-        key: "major",
-        label: `${MAJOR_ENEMY_APPEARANCE_THRESHOLD} apariciones o más`,
-        items: major
+        key: "popular",
+        label: `${POPULAR_ENEMY_APPEARANCE_THRESHOLD} apariciones o más`,
+        items: popular
+      },
+      {
+        key: "frequent",
+        label: `Entre ${FREQUENT_ENEMY_APPEARANCE_THRESHOLD} y ${POPULAR_ENEMY_APPEARANCE_THRESHOLD - 1} apariciones`,
+        items: frequent
       },
       {
         key: "other",
-        label: `Menos de ${MAJOR_ENEMY_APPEARANCE_THRESHOLD} apariciones`,
+        label: `Menos de ${FREQUENT_ENEMY_APPEARANCE_THRESHOLD} apariciones`,
         items: other
       }
     ]

@@ -8,6 +8,8 @@ No hay tareas en curso.
 
 # DONE
 
+- [2026-07-11] Reemplazar la carga masiva del dropdown de enemigos por un selector paginado de 50 elementos con prioridad 100+, luego 10+ y carga incremental al hacer scroll.
+
 - [2026-07-11] Hacer que la revision semanal recupere secuencialmente todas las semanas faltantes desde la ultima completada, incluso entre años ISO y sin duplicar comics.
 - [2026-07-11] Optimizar la carga del dropdown de enemigos con agregacion SQL, orden alfabetico reutilizable, cache temporal y recargas solo al cambiar personaje o universo.
 - [2026-07-11] Cambiar la agrupacion de enemigos de 100+ a 10+ apariciones.

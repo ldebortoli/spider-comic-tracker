@@ -298,7 +298,11 @@ function enemyDropdownGroupsAndFiltersTest() {
       releaseDate: `2020-01-${String(((index - 1) % 28) + 1).padStart(2, "0")}`,
       coverImageUrl: "",
       writers: [],
-      antagonists: index === 1 ? ["Kingpin", "Chameleon 1st"] : ["Kingpin"],
+      antagonists: [
+        "Kingpin",
+        ...(index <= 10 ? ["Mysterio"] : []),
+        ...(index === 1 ? ["Chameleon 1st"] : [])
+      ],
       appearanceType: "direct",
       sourceDefaultSort: ""
     });
@@ -312,8 +316,10 @@ function enemyDropdownGroupsAndFiltersTest() {
 
   const catalogEnemies = db.listCatalogEnemies({ character: "peter-parker-earth-616" });
   assert.equal(catalogEnemies.threshold, 10);
-  assert.equal(catalogEnemies.groups[0].items.some((item) => item.name === "Kingpin" && item.count === 100), true);
-  assert.equal(catalogEnemies.groups[1].items.some((item) => item.name === "Chameleon" && item.count === 1), true);
+  assert.equal(catalogEnemies.popularThreshold, 100);
+  assert.equal(catalogEnemies.groups.find((group) => group.key === "popular").items.some((item) => item.name === "Kingpin" && item.count === 100), true);
+  assert.equal(catalogEnemies.groups.find((group) => group.key === "frequent").items.some((item) => item.name === "Mysterio" && item.count === 10), true);
+  assert.equal(catalogEnemies.groups.find((group) => group.key === "other").items.some((item) => item.name === "Chameleon" && item.count === 1), true);
   assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "Kingpin" }).total, 100);
   assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "King" }).total, 0);
 
@@ -348,7 +354,7 @@ function enemyDropdownGroupsAndFiltersTest() {
     { name: "Green Goblin", section: "antagonists", isMatch: false }
   ]);
   const comicEnemies = db.listComicEnemies({ scope: "all" });
-  assert.equal(comicEnemies.groups[1].items.some((item) => item.name === "Green Goblin" && item.count === 1), true);
+  assert.equal(comicEnemies.groups.find((group) => group.key === "other").items.some((item) => item.name === "Green Goblin" && item.count === 1), true);
   assert.equal(db.listIncludedComics({ scope: "all", enemy: "Green Goblin" }).length, 1);
   assert.equal(db.listIncludedComics({ scope: "all", enemy: "Goblin" }).length, 0);
   db.close();

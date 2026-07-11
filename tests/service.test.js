@@ -82,6 +82,39 @@ async function weeklyUpdateCatchesUpMissingWeeksTest() {
   assert.equal(result.weeklyReview.toWeekKey, "2026-W02");
 }
 
+function enemyOptionsPaginationTest() {
+  const makeItems = (prefix, count, appearances) => Array.from({ length: count }, (_, index) => ({
+    name: `${prefix} ${String(index + 1).padStart(3, "0")}`,
+    count: appearances
+  }));
+  const db = {
+    listCatalogEnemies() {
+      return {
+        threshold: 10,
+        popularThreshold: 100,
+        total: 125,
+        groups: [
+          { key: "popular", label: "100 apariciones o más", items: makeItems("Popular", 5, 100) },
+          { key: "frequent", label: "Entre 10 y 99 apariciones", items: makeItems("Frecuente", 60, 10) },
+          { key: "other", label: "Menos de 10 apariciones", items: makeItems("Otro", 60, 1) }
+        ]
+      };
+    }
+  };
+  const service = new ComicTrackerService({ db, config: {} });
+  const first = service.listCatalogEnemies({}, { limit: 50, offset: 0 });
+  const second = service.listCatalogEnemies({}, { limit: 50, offset: 50 });
+  const searched = service.listCatalogEnemies({}, { limit: 50, search: "Otro 060", selected: "Otro 060" });
+
+  assert.equal(first.groups.flatMap((group) => group.items).length, 50);
+  assert.deepEqual(first.groups.map((group) => group.key), ["popular", "frequent"]);
+  assert.equal(first.hasMore, true);
+  assert.equal(second.offset, 50);
+  assert.equal(searched.total, 1);
+  assert.equal(searched.selectedExists, true);
+  assert.equal(searched.selectedItem.name, "Otro 060");
+}
+
 async function quarterlyRefreshTest() {
   const state = new Map();
   const db = {
@@ -160,6 +193,8 @@ async function paniniFailureDoesNotCancelUsaTest() {
   console.log("ok - la actualizacion semanal ejecuta revision e importacion incremental");
   await weeklyUpdateCatchesUpMissingWeeksTest();
   console.log("ok - la actualizacion semanal recupera semanas faltantes incluso entre años");
+  enemyOptionsPaginationTest();
+  console.log("ok - los enemigos se entregan en paginas de hasta 50 con prioridad por frecuencia");
   await quarterlyRefreshTest();
   console.log("ok - la revision trimestral actualiza todos los metadatos");
   await quarterlyRefreshScheduleValidationTest();
