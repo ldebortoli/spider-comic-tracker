@@ -9,6 +9,7 @@ const state = {
     stats: null,
     importStatus: {},
     characters: [],
+    enemyOptions: { groups: [], items: [] },
     items: [],
     total: 0,
     limit: 60,
@@ -43,6 +44,7 @@ const state = {
     from: "",
     to: ""
   },
+  enemyOptions: { groups: [], items: [] },
   telegramConfig: null,
   editingCharacterId: null,
   suggestionQuery: "",
@@ -250,6 +252,30 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function renderEnemySelect(select, options, selectedValue, allLabel) {
+  if (!select) {
+    return false;
+  }
+
+  const selectedExists = !selectedValue || (options.items || []).some((item) => item.name === selectedValue);
+  const safeSelected = selectedExists ? selectedValue : "";
+  const groups = (options.groups || [])
+    .filter((group) => (group.items || []).length)
+    .map((group) => `
+      <optgroup label="${escapeHtml(group.label)}">
+        ${(group.items || []).map((item) => `
+          <option value="${escapeHtml(item.name)}" ${item.name === safeSelected ? "selected" : ""}>
+            ${escapeHtml(item.name)} (${Number(item.count || 0)})
+          </option>
+        `).join("")}
+      </optgroup>
+    `).join("");
+
+  select.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>${groups}`;
+  select.value = safeSelected;
+  return selectedExists;
 }
 
 function normalizeForSearch(value) {
@@ -671,6 +697,7 @@ function renderCatalog() {
       state.catalog.filters.query = "";
       state.catalog.filters.enemy = "";
       state.catalog.offset = 0;
+      await loadCatalogEnemies();
       await loadCatalog();
     });
   } else {
@@ -774,7 +801,7 @@ async function saveCollectionIssue(issue, overrides = {}) {
     state.catalog.items[index] = updated;
   }
 
-  await Promise.all([loadCatalogStats(), loadCatalog()]);
+  await Promise.all([loadCatalogEnemies(), loadCatalogStats(), loadCatalog()]);
   return updated;
 }
 
@@ -1213,7 +1240,8 @@ function renderPending() {
           body: JSON.stringify({ action })
         });
         setSyncStatus(action === "approve" ? "Cómic agregado desde la revisión manual" : "Cómic rechazado desde la revisión manual");
-        await Promise.all([loadDashboard(), loadComics()]);
+        await Promise.all([loadDashboard(), loadComicEnemies()]);
+        await loadComics();
       } catch (error) {
         setSyncStatus(error.message);
         for (const sibling of item.querySelectorAll("button")) sibling.disabled = false;
@@ -1660,6 +1688,23 @@ async function loadCatalogStats() {
   renderCatalogStats();
 }
 
+async function loadCatalogEnemies() {
+  const filters = { ...state.catalog.filters };
+  delete filters.enemy;
+  const params = new URLSearchParams(filters);
+  state.catalog.enemyOptions = await api(`/api/catalog/enemies?${params.toString()}`);
+  const selectedExists = renderEnemySelect(
+    elements.catalogEnemy,
+    state.catalog.enemyOptions,
+    state.catalog.filters.enemy,
+    "Todos los enemigos"
+  );
+
+  if (!selectedExists) {
+    state.catalog.filters.enemy = "";
+  }
+}
+
 async function loadCatalogCharacters() {
   state.catalog.characters = await api("/api/catalog/characters");
 
@@ -1708,6 +1753,29 @@ async function loadComics() {
   renderHistoryComics();
 }
 
+async function loadComicEnemies() {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(state.filters)) {
+    if (value && key !== "enemy") {
+      params.set(key, value);
+    }
+  }
+
+  params.set("scope", "all");
+  state.enemyOptions = await api(`/api/comics/enemies?${params.toString()}`);
+  const selectedExists = renderEnemySelect(
+    elements.enemyInput,
+    state.enemyOptions,
+    state.filters.enemy,
+    "Todos los enemigos"
+  );
+
+  if (!selectedExists) {
+    state.filters.enemy = "";
+  }
+}
+
 async function toggleApprovalHistory() {
   state.historyOpen = !state.historyOpen;
   state.approvals.historyPage = 0;
@@ -1715,8 +1783,9 @@ async function toggleApprovalHistory() {
 }
 
 async function reloadAll() {
-  await Promise.all([loadDashboard(), loadTrackedCharacters(), loadComics(), loadCatalogCharacters(), loadSpanishEditions()]);
-  await Promise.all([loadCatalogStats(), loadCatalog()]);
+  await Promise.all([loadDashboard(), loadTrackedCharacters(), loadCatalogCharacters(), loadSpanishEditions()]);
+  await Promise.all([loadComicEnemies(), loadCatalogEnemies()]);
+  await Promise.all([loadComics(), loadCatalogStats(), loadCatalog()]);
   setSyncStatus("Vista actualizada");
 }
 
@@ -1788,7 +1857,7 @@ async function pollCatalogImport() {
 
     if (!state.catalog.importStatus.running) {
       await loadCatalogCharacters();
-      await Promise.all([loadCatalogStats(), loadCatalog()]);
+      await Promise.all([loadCatalogEnemies(), loadCatalogStats(), loadCatalog()]);
       return;
     }
   }
@@ -1832,7 +1901,9 @@ async function pollUntilFinished() {
     await loadDashboard();
 
     if (!state.dashboard.config.weeklyUpdateRunning) {
-      await Promise.all([loadComics(), loadCatalogCharacters(), loadCatalogStats(), loadCatalog(), loadSpanishEditions()]);
+      await loadCatalogCharacters();
+      await Promise.all([loadComicEnemies(), loadCatalogEnemies()]);
+      await Promise.all([loadComics(), loadCatalogStats(), loadCatalog(), loadSpanishEditions()]);
       setSyncStatus("Revisión USA + Panini terminada");
       return;
     }
@@ -1882,6 +1953,7 @@ function wireFilters() {
     state.filters.to = elements.toInput.value;
     state.approvals.recentPage = 0;
     state.approvals.historyPage = 0;
+    await loadComicEnemies();
     await loadComics();
   });
 
@@ -1902,6 +1974,7 @@ function wireCatalogFilters() {
     state.catalog.filters.from = elements.catalogFrom.value;
     state.catalog.filters.to = elements.catalogTo.value;
     state.catalog.offset = 0;
+    await loadCatalogEnemies();
     await Promise.all([loadCatalogStats(), loadCatalog()]);
   });
 
@@ -1911,6 +1984,7 @@ function wireCatalogFilters() {
     renderCatalogCharacters();
     elements.catalogCharacter.value = state.catalog.filters.character;
     state.catalog.offset = 0;
+    await loadCatalogEnemies();
     await Promise.all([loadCatalogStats(), loadCatalog()]);
   });
 

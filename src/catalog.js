@@ -378,6 +378,34 @@ function sectionLabelFromWikiLine(line) {
   return boldMatch ? normalizeWikiHeading(boldMatch[1]) : "";
 }
 
+function cleanWikiCharacterItem(value) {
+  const text = String(value || "")
+    .replace(/<!--[^]*?-->/g, " ")
+    .replace(/<ref\b[^>]*>[^]*?<\/ref>/gi, " ")
+    .replace(/<ref\b[^/]*\/>/gi, " ");
+  const firstLink = text.match(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/);
+
+  if (firstLink) {
+    return sanitizeLine(firstLink[2] || firstLink[1])
+      .replace(/'{2,}/g, "")
+      .replace(/\s+\([^)]*(?:mentioned|referenced)[^)]*\)$/i, "")
+      .replace(/\s+\b(?:1st|first appearance|mentioned|referenced|recap|flashback|dream|illusion|past|death|on[\s-]?screen)\b.*$/i, "")
+      .replace(/^[-–—]\s*/, "")
+      .replace(/\s*[-–—]$/, "")
+      .trim();
+  }
+
+  const firstTemplateArgument = text.match(/\{\{[^|{}]+?\|\s*([^|{}]+?)(?:\||\}\})/);
+  const fallback = firstTemplateArgument ? firstTemplateArgument[1] : text;
+
+  return cleanWikiCreator(fallback)
+    .replace(/\s+\([^)]*(?:mentioned|referenced)[^)]*\)$/i, "")
+    .replace(/\s+\b(?:mentioned|referenced|recap|flashback|dream|illusion|past|death|on[\s-]?screen)\b.*$/i, "")
+    .replace(/^[-–—]\s*/, "")
+    .replace(/\s*[-–—]$/, "")
+    .trim();
+}
+
 function extractCharacterSection(wikitext, label) {
   const lines = String(wikitext || "").split(/\r?\n/);
   const target = normalizeWikiHeading(label);
@@ -417,9 +445,7 @@ function extractCharacterSection(wikitext, label) {
       continue;
     }
 
-    const cleaned = cleanWikiCreator(itemMatch[1])
-      .replace(/\s+\([^)]*(?:mentioned|referenced)[^)]*\)$/i, "")
-      .trim();
+    const cleaned = cleanWikiCharacterItem(itemMatch[1]);
 
     if (cleaned && !/^(?:none|unknown|-|n\/a)$/i.test(cleaned)) {
       values.push(cleaned);
@@ -846,6 +872,7 @@ module.exports = {
   cleanWikiCreator,
   discoverCatalogRoster,
   extractDateMetadata,
+  extractCharacterSection,
   extractAppearanceDetails,
   extractReleaseDate,
   extractCoverFileName,

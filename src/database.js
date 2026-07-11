@@ -12,6 +12,63 @@ const {
   uniqueStrings
 } = require("./utils");
 
+const MAJOR_ENEMY_APPEARANCE_THRESHOLD = 100;
+
+function addEnemyCount(counts, rawName, increment = 1) {
+  const name = String(rawName || "").trim();
+  const normalized = normalizeText(name);
+
+  if (!name || !normalized) {
+    return;
+  }
+
+  const current = counts.get(normalized) || { name, count: 0 };
+  current.count += increment;
+  counts.set(normalized, current);
+}
+
+function buildEnemyOptionGroups(counts) {
+  const sortByName = (a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" });
+  const items = [...counts.values()].sort(sortByName);
+  const major = items
+    .filter((item) => item.count >= MAJOR_ENEMY_APPEARANCE_THRESHOLD)
+    .sort(sortByName);
+  const other = items
+    .filter((item) => item.count < MAJOR_ENEMY_APPEARANCE_THRESHOLD)
+    .sort(sortByName);
+
+  return {
+    threshold: MAJOR_ENEMY_APPEARANCE_THRESHOLD,
+    total: items.length,
+    items,
+    groups: [
+      {
+        key: "major",
+        label: `${MAJOR_ENEMY_APPEARANCE_THRESHOLD} apariciones o más`,
+        items: major
+      },
+      {
+        key: "other",
+        label: `Menos de ${MAJOR_ENEMY_APPEARANCE_THRESHOLD} apariciones`,
+        items: other
+      }
+    ]
+  };
+}
+
+function cleanEnemyNameForStorage(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+\b(?:1st|first appearance|mentioned|referenced|recap|flashback|dream|illusion|past|death|on[\s-]?screen)\b.*$/i, "")
+    .replace(/^[-–—]\s*/, "")
+    .replace(/\s*[-–—]$/, "")
+    .trim();
+}
+
+function uniqueEnemyNames(items) {
+  return uniqueStrings((items || []).map(cleanEnemyNameForStorage).filter(Boolean));
+}
+
 const SEEDED_TRACKED_CHARACTERS = [
   {
     displayName: "Spider-Verse (all variants)",
@@ -1203,7 +1260,7 @@ class ComicDatabase {
         comic.weekKey,
         JSON.stringify(comic.featuredCharacters || []),
         JSON.stringify(comic.supportingCharacters || []),
-        JSON.stringify(comic.antagonists || []),
+        JSON.stringify(uniqueEnemyNames(comic.antagonists || [])),
         JSON.stringify(comic.otherCharacters || []),
         comic.synopsis || "",
         JSON.stringify(comic.matchSummary || []),
@@ -1230,7 +1287,7 @@ class ComicDatabase {
         comic.weekKey,
         JSON.stringify(comic.featuredCharacters || []),
         JSON.stringify(comic.supportingCharacters || []),
-        JSON.stringify(comic.antagonists || []),
+        JSON.stringify(uniqueEnemyNames(comic.antagonists || [])),
         JSON.stringify(comic.otherCharacters || []),
         comic.synopsis || "",
         JSON.stringify(comic.matchSummary || []),
@@ -1251,10 +1308,18 @@ class ComicDatabase {
     this.statements.comicCharactersDelete.run(comicId);
 
     for (const character of characters) {
+      const name = character.section === "antagonists"
+        ? cleanEnemyNameForStorage(character.name)
+        : String(character.name || "").trim();
+
+      if (!name) {
+        continue;
+      }
+
       this.statements.comicCharacterInsert.run(
         comicId,
-        character.name,
-        normalizeText(character.name),
+        name,
+        normalizeText(name),
         character.section,
         character.isMatch ? 1 : 0
       );
@@ -1472,10 +1537,10 @@ class ComicDatabase {
           FROM comic_characters cc3
           WHERE cc3.comic_id = c.id
             AND cc3.section = 'antagonists'
-            AND cc3.character_name LIKE ?
+            AND cc3.normalized_name = ?
         )
       `);
-      params.push(`%${filters.enemy}%`);
+      params.push(normalizeText(filters.enemy));
     }
 
     const rows = this.db.prepare(`
@@ -1501,6 +1566,83 @@ class ComicDatabase {
       matchedCharacters: row.matched_characters ? row.matched_characters.split(",") : [],
       allCharacters: row.all_characters ? row.all_characters.split(",") : []
     }));
+  }
+
+  listComicEnemies(filters = {}) {
+    const conditions = [
+      "c.decision IN ('auto_added', 'manual_added')",
+      "(c.release_date IS NULL OR trim(c.release_date) = '' OR c.release_date <= date('now', 'localtime'))"
+    ];
+    const params = [];
+
+    if (filters.scope === "latest-week") {
+      conditions.push(`
+        c.week_key = COALESCE((
+          SELECT sr.week_key
+          FROM sync_runs sr
+          WHERE sr.status = 'completed'
+          ORDER BY sr.started_at DESC
+          LIMIT 1
+        ), '')
+      `);
+    } else if (filters.scope === "history") {
+      conditions.push(`
+        c.week_key != COALESCE((
+          SELECT sr.week_key
+          FROM sync_runs sr
+          WHERE sr.status = 'completed'
+          ORDER BY sr.started_at DESC
+          LIMIT 1
+        ), '')
+      `);
+    }
+
+    if (filters.query) {
+      conditions.push("c.title LIKE ?");
+      params.push(`%${filters.query}%`);
+    }
+
+    if (filters.from) {
+      conditions.push("c.release_date >= ?");
+      params.push(filters.from);
+    }
+
+    if (filters.to) {
+      conditions.push("c.release_date <= ?");
+      params.push(filters.to);
+    }
+
+    if (filters.character) {
+      conditions.push(`
+        EXISTS (
+          SELECT 1
+          FROM comic_characters cc2
+          WHERE cc2.comic_id = c.id
+            AND cc2.character_name LIKE ?
+        )
+      `);
+      params.push(`%${filters.character}%`);
+    }
+
+    const rows = this.db.prepare(`
+      SELECT
+        cc.normalized_name AS normalized_name,
+        MIN(cc.character_name) AS name,
+        COUNT(DISTINCT c.id) AS count
+      FROM comics c
+      JOIN comic_characters cc ON cc.comic_id = c.id
+      WHERE ${conditions.join(" AND ")}
+        AND cc.section = 'antagonists'
+        AND trim(cc.character_name) != ''
+      GROUP BY cc.normalized_name
+    `).all(...params);
+    const counts = new Map();
+
+    for (const row of rows) {
+      addEnemyCount(counts, row.name, Number(row.count || 0));
+    }
+
+    return buildEnemyOptionGroups(counts);
   }
 
   upsertCatalogIssues(issues) {
@@ -1529,7 +1671,7 @@ class ComicDatabase {
           issue.datePrecision || "",
           issue.coverImageUrl || "",
           JSON.stringify(uniqueStrings(issue.writers || [])),
-          JSON.stringify(uniqueStrings(issue.antagonists || [])),
+          JSON.stringify(uniqueEnemyNames(issue.antagonists || [])),
           issue.appearanceType,
           issue.sourceDefaultSort || "",
           sourceSyncedAt,
@@ -1768,8 +1910,14 @@ class ComicDatabase {
     }
 
     if (filters.enemy) {
-      conditions.push("i.antagonists_json LIKE ?");
-      params.push(`%${filters.enemy}%`);
+      conditions.push(`
+        EXISTS (
+          SELECT 1
+          FROM json_each(i.antagonists_json) enemy
+          WHERE enemy.value = ? COLLATE NOCASE
+        )
+      `);
+      params.push(filters.enemy);
     }
 
     if (filters.from) {
@@ -1841,6 +1989,69 @@ class ComicDatabase {
     };
   }
 
+  listCatalogEnemies(filters = {}) {
+    const scope = this.getCatalogScope(filters.character || "", filters.universeGroup || "main");
+    const conditions = [...scope.conditions];
+    const params = [...scope.params];
+    conditions.push("(i.release_date IS NULL OR trim(i.release_date) = '' OR i.release_date <= date('now', 'localtime'))");
+
+    if (filters.query) {
+      conditions.push("(i.title LIKE ? OR i.series_name LIKE ? OR i.writers_json LIKE ? OR i.owned_edition LIKE ?)");
+      const search = `%${filters.query}%`;
+      params.push(search, search, search, search);
+    }
+
+    if (filters.from) {
+      conditions.push("i.release_date >= ?");
+      params.push(filters.from);
+    }
+
+    if (filters.to) {
+      conditions.push("i.release_date <= ?");
+      params.push(filters.to);
+    }
+
+    if (filters.ownership === "owned") {
+      conditions.push("i.owned = 1");
+    } else if (filters.ownership === "missing") {
+      conditions.push("i.owned = 0");
+    }
+
+    if (filters.appearance === "direct" || filters.appearance === "minor") {
+      conditions.push("ci.appearance_type = ?");
+      params.push(filters.appearance);
+    } else if (["flashback", "dream", "vision", "recap"].includes(filters.appearance)) {
+      conditions.push("ci.appearance_type = 'minor' AND ci.appearance_detail = ?");
+      params.push(filters.appearance);
+    } else if (filters.appearance === "other-minor") {
+      conditions.push("ci.appearance_type = 'minor' AND ci.appearance_detail NOT IN ('flashback', 'dream', 'vision', 'recap')");
+    }
+
+    const rows = this.db.prepare(`
+      SELECT i.id, i.antagonists_json
+      FROM catalog_characters c
+      JOIN catalog_character_issues ci ON ci.character_id = c.id
+      JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
+      WHERE ${conditions.join(" AND ")}
+      GROUP BY i.id
+    `).all(...params);
+    const counts = new Map();
+
+    for (const row of rows) {
+      const seen = new Set();
+      for (const name of safeJsonParse(row.antagonists_json, [])) {
+        const normalized = normalizeText(name);
+        if (!normalized || seen.has(normalized)) {
+          continue;
+        }
+        seen.add(normalized);
+        addEnemyCount(counts, name);
+      }
+    }
+
+    return buildEnemyOptionGroups(counts);
+  }
+
   listCatalogIssuesMissingCovers() {
     return this.db.prepare(`
       SELECT fandom_page_id AS fandomPageId, page_title AS pageTitle,
@@ -1859,6 +2070,59 @@ class ComicDatabase {
       WHERE release_date IS NULL OR trim(release_date) = ''
       ORDER BY fandom_page_id ASC
     `).all();
+  }
+
+  listCatalogIssuesForEnemyBackfill({ missingOnly = false, limit = 0, offset = 0 } = {}) {
+    const conditions = missingOnly
+      ? ["(antagonists_json IS NULL OR trim(antagonists_json) = '' OR antagonists_json = '[]')"]
+      : ["1 = 1"];
+    const params = [];
+    const safeLimit = Math.max(0, Number(limit) || 0);
+    const safeOffset = Math.max(0, Number(offset) || 0);
+    const pagination = safeLimit ? "LIMIT ? OFFSET ?" : "";
+
+    if (safeLimit) {
+      params.push(safeLimit, safeOffset);
+    }
+
+    return this.db.prepare(`
+      SELECT
+        fandom_page_id AS fandomPageId,
+        page_title AS pageTitle,
+        appearance_type AS appearanceType,
+        antagonists_json AS antagonistsJson
+      FROM spiderman_catalog_issues
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY fandom_page_id ASC
+      ${pagination}
+    `).all(...params);
+  }
+
+  updateCatalogIssueAntagonists(items) {
+    const update = this.db.prepare(`
+      UPDATE spiderman_catalog_issues
+      SET antagonists_json = ?, source_synced_at = ?, updated_at = ?
+      WHERE fandom_page_id = ?
+    `);
+    const syncAt = nowIso();
+    let changes = 0;
+
+    this.db.exec("BEGIN;");
+    try {
+      for (const item of items || []) {
+        changes += Number(update.run(
+          JSON.stringify(uniqueEnemyNames(item.antagonists || [])),
+          syncAt,
+          syncAt,
+          Number(item.fandomPageId)
+        ).changes || 0);
+      }
+      this.db.exec("COMMIT;");
+      return changes;
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   listCatalogMembershipsMissingAppearanceDetails() {

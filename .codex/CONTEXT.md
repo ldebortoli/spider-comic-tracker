@@ -39,7 +39,23 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Ejecucion y tests
 
-Revisar el README y la configuracion real antes de ejecutar comandos. Registrar aqui los comandos verificados durante el proximo trabajo.
+- Servidor local: `npm start` o `npm run server:start`.
+- Estado del servidor: `npm run server:status`.
+- Apagado del servidor: `npm run server:stop`.
+- Tests completos: `npm test`.
+- Importacion historica: `npm run import:catalog`.
+- Reparaciones puntuales: `npm run repair:covers`, `npm run repair:dates`, `npm run repair:appearances`, `npm run repair:enemies`, `npm run repair:spanish-covers`.
+- La UI local responde en `http://localhost:8787`.
+- La base principal queda en `data/comics.sqlite` y no debe versionarse.
+
+## Arquitectura estable
+
+- Backend Node.js en `src/server.js`, `src/service.js` y `src/database.js`.
+- UI estatica en `public/index.html`, `public/app.js` y `public/styles.css`.
+- Scrapers/parsers principales: `src/catalog.js`, `src/marvel.js`, `src/panini.js`, `src/universo-marvel.js`.
+- Datos historicos USA: `spiderman_catalog_issues`, `catalog_characters`, `catalog_character_issues`.
+- Seguimiento semanal: `comics`, `volumes`, `comic_characters`, `review_queue`, `sync_runs`.
+- Ediciones en espanol: `spanish_editions`, `spanish_edition_issues`, `panini_products`.
 
 ## Convenciones
 

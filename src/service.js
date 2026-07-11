@@ -309,8 +309,16 @@ class ComicTrackerService {
     return this.db.listIncludedComics(filters);
   }
 
+  listComicEnemies(filters) {
+    return this.db.listComicEnemies(filters);
+  }
+
   listCatalogIssues(filters) {
     return this.db.listCatalogIssues(filters);
+  }
+
+  listCatalogEnemies(filters) {
+    return this.db.listCatalogEnemies(filters);
   }
 
   listCatalogCharacters() {

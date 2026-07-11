@@ -22,3 +22,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: cerrar la ventana de control ejecuta `Stop-TrackerFromPanel` antes de liberar el panel; si el apagado falla, se cancela el cierre y se muestra el error.
 - Motivo: una UI creada para controlar el ciclo de vida del servidor no debe dejar el proceso Node ejecutandose sin su panel.
+
+## D-004 - Los enemigos son metadata de filtrado, no fuente de descubrimiento
+
+- Estado: vigente.
+- Fecha: 2026-07-11.
+- Decision: el catalogo y el seguimiento semanal guardan antagonistas para filtrar por enemigo, pero las importaciones nuevas siguen descubriendo comics exclusivamente desde los personajes/listas seguidos.
+- Motivo: evita ampliar el alcance por enemigos y mantiene estable la cobertura definida por el usuario.

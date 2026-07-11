@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-No hay una tarea activa registrada.
+Sin tarea activa. Ultima tarea completada: filtro de enemigos como dropdown alfabetico agrupado, backfill de antagonistas por issue desde Marvel Fandom y preservacion del descubrimiento basado solo en personajes seguidos.
 
 ## Estado actual
 
@@ -16,14 +16,17 @@ No hay una tarea activa registrada.
 - Memoria persistente inicializada el 2026-07-10.
 - Rama detectada: `main`.
 - Remoto origin: `https://github.com/ldebortoli/spider-comic-tracker.git`.
+- El filtro de enemigos ya no es texto libre: usa endpoints `/api/catalog/enemies` y `/api/comics/enemies`, con dos grupos (`100 apariciones o mas` y `menos de 100`).
+- `scripts/backfill-catalog-enemies.js` completo el backfill de 11.248 fichas el 2026-07-11 sin errores; `npm run repair:enemies` lo puede repetir.
+- Parser y capa de base limpian notas de plantillas de antagonistas antes de guardar.
+- El servidor local fue reiniciado y quedo encendido en `http://localhost:8787` con PID detectado 18560 durante esta sesion.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos
 
 1. Leer los cinco archivos de `.codex/`.
 2. Revisar README, estructura y estado Git.
-3. Completar CONTEXT.md si falta informacion estable.
-4. Procesar USER_QUEUE.md y continuar desde BACKLOG.md.
+3. Procesar USER_QUEUE.md y continuar desde BACKLOG.md.
 
 ## Riesgos
 

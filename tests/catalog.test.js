@@ -4,6 +4,7 @@ const {
   extractWriters,
   extractAppearanceDetails,
   extractDateMetadata,
+  extractCharacterSection,
   mergeAppearanceMembers,
   parseCatalogPage,
   extractCoverFileName,
@@ -160,6 +161,19 @@ function appearanceDetailsTest() {
   assert.equal(details["Venom (Symbiote) (Earth-616)"], "vision");
 }
 
+function characterSectionTemplateCleanupTest() {
+  const antagonists = extractCharacterSection(`
+    '''Antagonists:'''
+    * {{ap|[[Foreigner (Earth-616)|Foreigner]]|Spectacular Spider-Man Annual Vol 1 14|Illusion}}
+    * [[Wilson Fisk (Earth-616)|Kingpin (Wilson Fisk)]] {{Mentioned}}
+    * {{1st|[[Emile (Earth-616)|Emile]]}}
+    '''Other Characters:'''
+    * [[May Reilly (Earth-616)|Aunt May]]
+  `, "Antagonists");
+
+  assert.deepEqual(antagonists, ["Foreigner", "Kingpin (Wilson Fisk)", "Emile"]);
+}
+
 function mergeAppearanceMembersTest() {
   const result = mergeAppearanceMembers(
     [{ pageId: 1, pageTitle: "A", appearanceType: "direct" }],
@@ -264,6 +278,78 @@ function sharedComicAppearsInEachCharacterTest() {
     notes: ""
   });
   assert.equal(db.listCatalogIssues({ character: venom.slug }).items[0].owned, true);
+  db.close();
+}
+
+function enemyDropdownGroupsAndFiltersTest() {
+  const db = new ComicDatabase(":memory:");
+  const issues = [];
+
+  for (let index = 1; index <= 100; index += 1) {
+    issues.push({
+      fandomPageId: 810000 + index,
+      pageTitle: `Enemy Test Vol 1 ${index}`,
+      title: `Enemy Test (Vol. 1) #${index}`,
+      fandomUrl: `https://example.test/enemy-test-${index}`,
+      seriesName: "Enemy Test",
+      volumeNumber: 1,
+      issueLabel: String(index),
+      issueNumber: index,
+      releaseDate: `2020-01-${String(((index - 1) % 28) + 1).padStart(2, "0")}`,
+      coverImageUrl: "",
+      writers: [],
+      antagonists: index === 1 ? ["Kingpin", "Chameleon 1st"] : ["Kingpin"],
+      appearanceType: "direct",
+      sourceDefaultSort: ""
+    });
+  }
+
+  db.upsertCatalogIssues(issues);
+  db.replaceCatalogCharacterIssues("peter-parker-earth-616", issues.map((issue) => ({
+    pageId: issue.fandomPageId,
+    appearanceType: "direct"
+  })));
+
+  const catalogEnemies = db.listCatalogEnemies({ character: "peter-parker-earth-616" });
+  assert.equal(catalogEnemies.groups[0].items.some((item) => item.name === "Kingpin" && item.count === 100), true);
+  assert.equal(catalogEnemies.groups[1].items.some((item) => item.name === "Chameleon" && item.count === 1), true);
+  assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "Kingpin" }).total, 100);
+  assert.equal(db.listCatalogIssues({ character: "peter-parker-earth-616", enemy: "King" }).total, 0);
+
+  const comic = db.upsertComic({
+    title: "Aprobado con enemigo #1",
+    pageTitle: "Aprobado con enemigo Vol 1 1",
+    fandomUrl: "https://example.test/aprobado-enemigo-1",
+    releaseDate: "2026-06-30",
+    coverImageUrl: "",
+    volumePageTitle: "Aprobado con enemigo Vol 1",
+    volumeName: "Aprobado con enemigo (Vol. 1)",
+    seriesName: "Aprobado con enemigo",
+    volumeNumber: 1,
+    volumeFandomUrl: "https://example.test/aprobado-enemigo-volume",
+    issueLabel: "1",
+    issueNumber: 1,
+    weekYear: 2026,
+    weekNumber: 27,
+    weekKey: "2026-W27",
+    featuredCharacters: ["Spider-Man"],
+    supportingCharacters: [],
+    antagonists: ["Green Goblin"],
+    otherCharacters: [],
+    matchSummary: ["Spider-Man"],
+    originalityStatus: "original",
+    originalityReason: "Prueba",
+    decision: "auto_added",
+    decisionReason: "Prueba"
+  });
+  db.replaceComicCharacters(comic.id, [
+    { name: "Spider-Man", section: "featured", isMatch: true },
+    { name: "Green Goblin", section: "antagonists", isMatch: false }
+  ]);
+  const comicEnemies = db.listComicEnemies({ scope: "all" });
+  assert.equal(comicEnemies.groups[1].items.some((item) => item.name === "Green Goblin" && item.count === 1), true);
+  assert.equal(db.listIncludedComics({ scope: "all", enemy: "Green Goblin" }).length, 1);
+  assert.equal(db.listIncludedComics({ scope: "all", enemy: "Goblin" }).length, 0);
   db.close();
 }
 
@@ -463,6 +549,7 @@ const tests = [
   ["extrae la tapa declarada en Image1", extractCoverFileNameTest],
   ["extrae y limpia guionistas", extractWritersTest],
   ["clasifica el subtipo de las apariciones menores", appearanceDetailsTest],
+  ["limpia plantillas de secciones de personajes sin arrastrar notas", characterSectionTemplateCleanupTest],
   ["usa Cover Date cuando falta Release Date", coverDateFallbackTest],
   ["incluye los personajes relacionados pedidos", relatedCharactersSeedTest],
   ["unifica sugerencias semanales y personajes del catálogo", unifiedSuggestionCharactersTest],
@@ -470,6 +557,7 @@ const tests = [
   ["usa la fecha de salida codificada en defaultsort", parseDefaultSortDateTest],
   ["una reimportacion conserva la coleccion", collectionStateSurvivesImportTest],
   ["un comic compartido aparece en cada lista sin duplicarse", sharedComicAppearsInEachCharacterTest],
+  ["agrupa y filtra enemigos detectados en catalogo y seguimiento", enemyDropdownGroupsAndFiltersTest],
   ["las ediciones en español relacionan varios issues sin datos precargados", spanishEditionsTest],
   ["Panini no duplica productos y prioriza el tomo con más páginas", paniniPreferenceTest],
   ["una revision web se resuelve una sola vez", webReviewDecisionTest],

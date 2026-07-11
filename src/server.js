@@ -271,6 +271,17 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/comics/enemies") {
+      sendJson(response, 200, service.listComicEnemies({
+        scope: url.searchParams.get("scope") || "all",
+        query: url.searchParams.get("query") || "",
+        character: url.searchParams.get("character") || "",
+        from: url.searchParams.get("from") || "",
+        to: url.searchParams.get("to") || ""
+      }));
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/api/catalog/stats") {
       sendJson(response, 200, {
         stats: service.getCatalogStats(
@@ -294,6 +305,19 @@ const server = http.createServer(async (request, response) => {
           url.searchParams.get("limit") || "30"
         )
       });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/api/catalog/enemies") {
+      sendJson(response, 200, service.listCatalogEnemies({
+        character: url.searchParams.get("character") || "",
+        universeGroup: url.searchParams.get("universeGroup") || "main",
+        query: url.searchParams.get("query") || "",
+        ownership: url.searchParams.get("ownership") || "all",
+        appearance: url.searchParams.get("appearance") || "all",
+        from: url.searchParams.get("from") || "",
+        to: url.searchParams.get("to") || ""
+      }));
       return;
     }
 
