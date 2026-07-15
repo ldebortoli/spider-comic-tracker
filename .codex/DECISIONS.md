@@ -57,3 +57,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-11.
 - Decision: agrupar y filtrar enemigos por su nombre normalizado, aunque las fichas fuente difieran en comillas, puntos, espacios o mayusculas. Mostrar el nombre limpio, quitando solo comillas que envuelven el nombre completo, y conservar comillas internas con significado. El selector se ordena por cantidad descendente por defecto y permite cambiar a orden alfabetico.
 - Motivo: el selector ya sumaba variantes equivalentes, pero la consulta exacta devolvia solo la variante elegida y producia discrepancias como 106 apariciones contabilizadas frente a un unico resultado.
+
+## D-009 - Los errores semanales por ficha tienen cola persistente
+
+- Estado: vigente; complementa D-006.
+- Fecha: 2026-07-15.
+- Decision: reintentar hasta tres veces el HTML `action=render` de Marvel Fandom y usar la API `action=parse` como alternativa. Todo error individual se guarda en `weekly_fetch_failures` con semana original, cantidad de intentos y último mensaje. Las revisiones posteriores procesan primero esa cola, preservan la semana original del cómic y marcan la entrada como resuelta al completar todo el flujo.
+- Motivo: una corrida semanal puede completarse aunque Cloudflare bloquee fichas aisladas; sin una cola separada, avanzar el corte semanal dejaba esos títulos sin una nueva oportunidad automática.

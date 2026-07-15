@@ -307,6 +307,8 @@ class TelegramBridge {
       `Agregados: ${summary.added}`,
       `Rechazados: ${summary.rejected}`,
       `Pendientes: ${summary.pendingReview}`,
+      `Reintentos: ${summary.retried || 0}`,
+      `Recuperados: ${summary.retryRecovered || 0}`,
       `Errores: ${summary.errors}`
     ];
 
@@ -316,6 +318,16 @@ class TelegramBridge {
 
     if (summary.addedTitles?.length) {
       chunks.push("", `Agregados: ${summary.addedTitles.slice(0, 8).join(", ")}`);
+    }
+
+    if (summary.errorDetails?.length) {
+      chunks.push(
+        "",
+        "Detalle de errores:",
+        ...summary.errorDetails.slice(0, 5).map((item) => (
+          `- ${item.pageTitle}: ${String(item.message || "Error desconocido").slice(0, 220)}`
+        ))
+      );
     }
 
     if (summary.rejectedTitles?.length) {

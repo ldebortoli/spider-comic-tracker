@@ -223,6 +223,7 @@ class ComicDatabase {
     this.migrateTrackedCharactersToCatalog();
     this.seedPeterCatalogMembership();
     this.prepareStatements();
+    this.backfillWeeklyFetchFailuresFromSyncRuns();
   }
 
   migrate() {
@@ -293,6 +294,20 @@ class ComicDatabase {
         status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),
         summary_json TEXT NOT NULL DEFAULT '{}',
         error_message TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS weekly_fetch_failures (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_title TEXT NOT NULL UNIQUE,
+        week_year INTEGER NOT NULL,
+        week_number INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'resolved')),
+        attempt_count INTEGER NOT NULL DEFAULT 1,
+        last_error TEXT NOT NULL DEFAULT '',
+        first_failed_at TEXT NOT NULL,
+        last_attempt_at TEXT NOT NULL,
+        resolved_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS review_queue (
@@ -433,6 +448,7 @@ class ComicDatabase {
       CREATE INDEX IF NOT EXISTS idx_comics_decision ON comics(decision);
       CREATE INDEX IF NOT EXISTS idx_volumes_normalized_name ON volumes(normalized_name);
       CREATE INDEX IF NOT EXISTS idx_review_queue_status ON review_queue(status);
+      CREATE INDEX IF NOT EXISTS idx_weekly_fetch_failures_status ON weekly_fetch_failures(status, week_year, week_number, id);
       CREATE INDEX IF NOT EXISTS idx_comic_characters_normalized ON comic_characters(normalized_name);
       CREATE INDEX IF NOT EXISTS idx_catalog_series ON spiderman_catalog_issues(series_name COLLATE NOCASE, volume_number, issue_number);
       CREATE INDEX IF NOT EXISTS idx_catalog_release_date ON spiderman_catalog_issues(release_date);
@@ -766,6 +782,55 @@ class ComicDatabase {
         UPDATE sync_runs
         SET finished_at = ?, status = ?, summary_json = ?, error_message = ?
         WHERE id = ?
+      `),
+      weeklyFetchFailureUpsert: this.db.prepare(`
+        INSERT INTO weekly_fetch_failures (
+          page_title, week_year, week_number, status, attempt_count, last_error,
+          first_failed_at, last_attempt_at, resolved_at, updated_at
+        ) VALUES (?, ?, ?, 'pending', 1, ?, ?, ?, '', ?)
+        ON CONFLICT(page_title) DO UPDATE SET
+          week_year = excluded.week_year,
+          week_number = excluded.week_number,
+          status = 'pending',
+          attempt_count = weekly_fetch_failures.attempt_count + 1,
+          last_error = excluded.last_error,
+          last_attempt_at = excluded.last_attempt_at,
+          resolved_at = '',
+          updated_at = excluded.updated_at
+      `),
+      weeklyFetchFailureBackfill: this.db.prepare(`
+        INSERT INTO weekly_fetch_failures (
+          page_title, week_year, week_number, status, attempt_count, last_error,
+          first_failed_at, last_attempt_at, resolved_at, updated_at
+        ) VALUES (?, ?, ?, 'pending', 1, ?, ?, ?, '', ?)
+        ON CONFLICT(page_title) DO NOTHING
+      `),
+      weeklyFetchFailureResolve: this.db.prepare(`
+        UPDATE weekly_fetch_failures
+        SET status = 'resolved', resolved_at = ?, updated_at = ?
+        WHERE page_title = ? AND status = 'pending'
+      `),
+      weeklyFetchFailurePending: this.db.prepare(`
+        SELECT *
+        FROM weekly_fetch_failures
+        WHERE status = 'pending'
+        ORDER BY week_year ASC, week_number ASC, id ASC
+        LIMIT ?
+      `),
+      weeklyFetchFailureByTitle: this.db.prepare(`
+        SELECT * FROM weekly_fetch_failures WHERE page_title = ?
+      `),
+      weeklyFetchFailureStats: this.db.prepare(`
+        SELECT
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
+          SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved
+        FROM weekly_fetch_failures
+      `),
+      completedSyncRunsWithErrors: this.db.prepare(`
+        SELECT week_year, week_number, finished_at, summary_json
+        FROM sync_runs
+        WHERE status = 'completed'
+        ORDER BY week_year ASC, week_number ASC, id ASC
       `),
       lastSyncRun: this.db.prepare(`
         SELECT *
@@ -1372,6 +1437,83 @@ class ComicDatabase {
       Number(weekYear),
       Number(weekNumber)
     ));
+  }
+
+  mapWeeklyFetchFailure(row) {
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      pageTitle: row.page_title,
+      weekYear: Number(row.week_year),
+      weekNumber: Number(row.week_number),
+      weekKey: buildWeekKey(Number(row.week_year), Number(row.week_number)),
+      status: row.status,
+      attemptCount: Number(row.attempt_count || 0),
+      lastError: row.last_error || "",
+      firstFailedAt: row.first_failed_at || "",
+      lastAttemptAt: row.last_attempt_at || "",
+      resolvedAt: row.resolved_at || "",
+      updatedAt: row.updated_at || ""
+    };
+  }
+
+  queueWeeklyFetchFailure({ pageTitle, weekYear, weekNumber, errorMessage }) {
+    const now = nowIso();
+    this.statements.weeklyFetchFailureUpsert.run(
+      String(pageTitle || "").trim(),
+      Number(weekYear),
+      Number(weekNumber),
+      String(errorMessage || "Error desconocido"),
+      now,
+      now,
+      now
+    );
+    return this.getWeeklyFetchFailure(pageTitle);
+  }
+
+  resolveWeeklyFetchFailure(pageTitle) {
+    const now = nowIso();
+    this.statements.weeklyFetchFailureResolve.run(now, now, String(pageTitle || "").trim());
+    return this.getWeeklyFetchFailure(pageTitle);
+  }
+
+  getWeeklyFetchFailure(pageTitle) {
+    return this.mapWeeklyFetchFailure(this.statements.weeklyFetchFailureByTitle.get(String(pageTitle || "").trim()));
+  }
+
+  listPendingWeeklyFetchFailures(limit = 100) {
+    return this.statements.weeklyFetchFailurePending
+      .all(Math.max(1, Math.min(500, Number(limit) || 100)))
+      .map((row) => this.mapWeeklyFetchFailure(row));
+  }
+
+  getWeeklyFetchFailureStats() {
+    const row = this.statements.weeklyFetchFailureStats.get() || {};
+    return {
+      pending: Number(row.pending || 0),
+      resolved: Number(row.resolved || 0)
+    };
+  }
+
+  backfillWeeklyFetchFailuresFromSyncRuns() {
+    const legacyError = "Error histórico sin detalle; se reintentará automáticamente.";
+    for (const row of this.statements.completedSyncRunsWithErrors.all()) {
+      const summary = safeJsonParse(row.summary_json, {});
+      const details = new Map((summary.errorDetails || []).map((item) => [item.pageTitle, item.message]));
+      for (const pageTitle of uniqueStrings(summary.erroredTitles || [])) {
+        if (!pageTitle || this.getComicByPageTitle(pageTitle)) continue;
+        const failedAt = row.finished_at || nowIso();
+        this.statements.weeklyFetchFailureBackfill.run(
+          pageTitle,
+          Number(row.week_year),
+          Number(row.week_number),
+          details.get(pageTitle) || legacyError,
+          failedAt,
+          failedAt,
+          failedAt
+        );
+      }
+    }
   }
 
   mapSyncRun(row) {

@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 
+const { ComicDatabase } = require("../src/database");
 const { ComicTrackerService } = require("../src/service");
 
 async function weeklyUpdateRunsBothStepsTest() {
@@ -195,6 +196,73 @@ async function paniniFailureDoesNotCancelUsaTest() {
   assert.match(result.paniniUpdate.errorMessage, /Sala de espera/);
 }
 
+async function weeklyRetryQueueTest() {
+  const db = new ComicDatabase(":memory:");
+  db.queueWeeklyFetchFailure({
+    pageTitle: "Retry Alien Vol 1 1",
+    weekYear: 2026,
+    weekNumber: 29,
+    errorMessage: "Cloudflare 403"
+  });
+  const calls = [];
+  const service = new ComicTrackerService({
+    db,
+    config: { marvelBaseUrl: "https://marvel.fandom.com" },
+    marvelClient: {
+      fetchWeekReleases: async () => ({ members: [{ pageTitle: "Current Failure Vol 1 1" }] }),
+      fetchComicDetails: async ({ pageTitle }) => {
+        calls.push(pageTitle);
+        if (pageTitle === "Current Failure Vol 1 1") throw new Error("Cloudflare volvió a bloquear");
+        return {
+          title: "Retry Alien #1",
+          pageTitle,
+          fandomUrl: "https://example.test/retry-alien-1",
+          releaseDate: "2026-07-15",
+          coverImageUrl: "",
+          volumePageTitle: "Retry Alien Vol 1",
+          volumeName: "Retry Alien (Vol. 1)",
+          seriesName: "Retry Alien",
+          volumeNumber: 1,
+          volumeFandomUrl: "https://example.test/retry-alien",
+          issueLabel: "1",
+          issueNumber: 1,
+          featuredCharacters: [],
+          supportingCharacters: [],
+          antagonists: [],
+          otherCharacters: [],
+          appearanceCategories: [],
+          synopsis: "",
+          sourceHtml: ""
+        };
+      }
+    }
+  });
+
+  const originalConsoleError = console.error;
+  let summary;
+  try {
+    console.error = () => {};
+    summary = await service.performSync({
+      triggerSource: "test",
+      weekYear: 2026,
+      weekNumber: 30,
+      runSideEffects: false
+    });
+  } finally {
+    console.error = originalConsoleError;
+  }
+
+  assert.deepEqual(calls, ["Retry Alien Vol 1 1", "Current Failure Vol 1 1"]);
+  assert.equal(summary.retried, 1);
+  assert.equal(summary.retryRecovered, 1);
+  assert.equal(summary.errors, 1);
+  assert.match(summary.errorDetails[0].message, /Cloudflare volvió a bloquear/);
+  assert.equal(db.getComicByPageTitle("Retry Alien Vol 1 1").weekKey, "2026-W29");
+  assert.equal(db.getWeeklyFetchFailure("Retry Alien Vol 1 1").status, "resolved");
+  assert.equal(db.getWeeklyFetchFailure("Current Failure Vol 1 1").status, "pending");
+  db.close();
+}
+
 (async () => {
   await weeklyUpdateRunsBothStepsTest();
   console.log("ok - la actualizacion semanal ejecuta revision e importacion incremental");
@@ -208,6 +276,8 @@ async function paniniFailureDoesNotCancelUsaTest() {
   console.log("ok - la revision trimestral valida la proxima fecha configurable");
   await paniniFailureDoesNotCancelUsaTest();
   console.log("ok - una caida de Panini no cancela la actualizacion USA");
+  await weeklyRetryQueueTest();
+  console.log("ok - los errores por ficha se conservan y se reintentan aunque avance la semana");
 })()
   .catch((error) => {
     console.error(error);

@@ -54,8 +54,9 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - UI estatica en `public/index.html`, `public/app.js` y `public/styles.css`.
 - Scrapers/parsers principales: `src/catalog.js`, `src/marvel.js`, `src/panini.js`, `src/universo-marvel.js`.
 - Datos historicos USA: `spiderman_catalog_issues`, `catalog_characters`, `catalog_character_issues`.
-- Seguimiento semanal: `comics`, `volumes`, `comic_characters`, `review_queue`, `sync_runs`.
+- Seguimiento semanal: `comics`, `volumes`, `comic_characters`, `review_queue`, `sync_runs`, `weekly_fetch_failures`.
 - La revision semanal recupera categorias `Category:Week_##,_YYYY` desde la semana posterior a la ultima `sync_run` completada hasta la semana ISO actual.
+- Las fichas semanales fallidas se conservan en una cola persistente y se reintentan en revisiones posteriores con su semana original. Marvel Fandom usa reintentos de `action=render` y `action=parse` como alternativa.
 - Los endpoints de enemigos conservan una cache completa por personaje/universo, pero la UI consume paginas de hasta 50, permite ordenar por frecuencia o alfabeticamente y agrega mas opciones al hacer scroll.
 - El conteo y el filtrado de enemigos comparten la misma normalizacion de nombres para unificar diferencias de puntuacion, comillas y mayusculas.
 - Ediciones en espanol: `spanish_editions`, `spanish_edition_issues`, `panini_products`.

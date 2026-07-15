@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tarea en curso. Se diagnosticaron las dos advertencias de la revisión semanal del 15 de julio de 2026.
+Sin tareas pendientes. La recuperación persistente de errores semanales quedó implementada y validada.
 
 ## Estado actual
 
@@ -24,9 +24,11 @@ Sin tarea en curso. Se diagnosticaron las dos advertencias de la revisión seman
 - La revision semanal consulta `Category:Week_##,_YYYY` en Marvel Fandom para cada semana faltante, en orden; usa la ultima `sync_run` completada como corte y cruza correctamente cambios de año ISO.
 - Las semanas recuperadas ejecutan una sola vez al final la importacion incremental historica y la revision de fuentes españolas; backups/resumenes Telegram tampoco se repiten por cada semana atrasada.
 - La revisión programada `2026-W29` terminó como completada: procesó 22 fichas, agregó 3, rechazó 17, envió 1 a revisión, reconoció 1 rechazo previo y registró 2 errores sobre títulos de Alien.
-- Los dos errores Marvel se reprodujeron como desafíos `403` intermitentes de Cloudflare en `action=render`; ambas páginas existen y `action=parse` responde. Ninguna quedó guardada y, al quedar la semana completada, hoy no se reintentan automáticamente.
+- Marvel Fandom reintenta `action=render` hasta tres veces y usa `action=parse` como alternativa. Los errores finales incluyen el mensaje por ficha en el resumen y Telegram.
+- `weekly_fetch_failures` conserva títulos fallidos con semana, intentos y último error; `performSync` los incorpora aunque el corte semanal haya avanzado y conserva la semana original al guardarlos.
+- La migración detectó los dos errores históricos de `2026-W29` y los dejó pendientes para la próxima revisión normal. Las dos fichas reales ya se obtienen correctamente con el nuevo lector.
 - La importación española registró además 2 `socket hang up` en Universo Marvel. Ambas fichas cargaron y parsearon correctamente durante el diagnóstico; `spanish_source_queue` conserva estado `error` y ya incluye esos estados en ejecuciones posteriores.
-- El servidor local está encendido en `http://localhost:8787` con PID 7548.
+- El servidor local fue reiniciado con la migración y está encendido en `http://localhost:8787` con PID 16180.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos

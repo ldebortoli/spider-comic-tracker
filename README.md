@@ -20,6 +20,7 @@ Aplicacion local para catalogar las apariciones historicas de Spider-Man/Peter P
 - Muestra en cada issue los personajes que aparecen dentro de la lista o categoría seleccionada.
 - Exporta todo el catalogo y el estado de la coleccion a CSV desde la interfaz.
 - Revisa las categorias semanales de Marvel Fandom `Category:Week_##,_YYYY` desde la semana posterior a la ultima revision completada hasta la actual.
+- Reintenta fichas bloqueadas temporalmente por Cloudflare, usa `action=parse` si falla `action=render` y conserva cada error individual para recuperarlo en una revisión posterior sin cambiar su semana original.
 - Extrae titulo, URL de la ficha, fecha de publicacion, tapa y personajes detectados.
 - Organiza cada comic dentro de su volumen correspondiente.
 - Distingue entre material nuevo, reediciones claras y casos dudosos.
@@ -166,6 +167,7 @@ La fuente usada son las categorias de apariciones de Marvel Database. El catalog
 - Los comics aceptados se muestran agrupados por volumen en la UI.
 - La primera lista de personajes viene precargada con cobertura amplia para Spider-Man de distintos universos, simbiontes, Black Cat, Knull, Spider-Boy, Mary Jane y Gwen Stacy. Se puede editar desde la UI.
 - Si todavía no existe ninguna revisión semanal completada, la primera ejecución toma la semana vigente como punto inicial. A partir de ahí, cada ejecución recupera cualquier semana faltante, incluso al cambiar de año ISO.
+- Los títulos que fallen dentro de una semana completada quedan en `weekly_fetch_failures` con su mensaje e intentos; se reintentan automáticamente hasta completar el flujo y entonces se marcan como resueltos.
 - La UI no fuerza auto-refresh luego de una corrida. Queda a proposito un boton `Actualizar vista`, como pediste.
 - Si Telegram no esta configurado, los casos ambiguos quedan como pendientes en la base, pero no se manda notificacion.
 - Los pendientes se pueden aprobar o rechazar directamente desde la pagina. Si Telegram esta configurado, el servidor mantiene encendido el bot Python por polling y refleja tambien las decisiones tomadas desde la web.

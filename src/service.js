@@ -62,9 +62,18 @@ function aggregateWeeklyReviews(weekSummaries) {
     "alreadyIncluded",
     "alreadyRejected",
     "pendingAlreadyOpen",
+    "retried",
+    "retryRecovered",
     "errors"
   ];
-  const titleFields = ["addedTitles", "rejectedTitles", "pendingTitles", "erroredTitles"];
+  const titleFields = [
+    "addedTitles",
+    "rejectedTitles",
+    "pendingTitles",
+    "retriedTitles",
+    "retryRecoveredTitles",
+    "erroredTitles"
+  ];
   const summary = {
     weekKey: last.weekKey || "",
     fromWeekKey: first.weekKey || "",
@@ -79,6 +88,11 @@ function aggregateWeeklyReviews(weekSummaries) {
   for (const field of titleFields) {
     summary[field] = uniqueStrings(weekSummaries.flatMap((item) => item[field] || []));
   }
+  summary.errorDetails = [...new Map(
+    weekSummaries
+      .flatMap((item) => item.errorDetails || [])
+      .map((item) => [item.pageTitle, item])
+  ).values()];
   return summary;
 }
 
@@ -154,7 +168,7 @@ function formatBytes(bytes) {
 }
 
 class ComicTrackerService {
-  constructor({ db, config }) {
+  constructor({ db, config, marvelClient = {} }) {
     this.db = db;
     this.config = config;
     this.telegram = null;
@@ -165,6 +179,8 @@ class ComicTrackerService {
     this.currentQuarterlyRefreshPromise = null;
     this.schedulerHandle = null;
     this.enemyOptionCache = new Map();
+    this.fetchWeekReleases = marvelClient.fetchWeekReleases || fetchWeekReleases;
+    this.fetchComicDetails = marvelClient.fetchComicDetails || fetchComicDetails;
   }
 
   attachTelegram(telegram) {
@@ -186,6 +202,7 @@ class ComicTrackerService {
         windowsTaskInstalled: fs.existsSync(path.resolve(process.cwd(), "data/weekly-task-installed.json"))
       },
       weeklyUpdate: this.getWeeklyUpdateStatus(),
+      weeklyFetchFailures: this.db.getWeeklyFetchFailureStats?.() || { pending: 0, resolved: 0 },
       paniniImport: this.getPaniniImportStatus(),
       quarterlyRefresh: this.getQuarterlyRefreshStatus(),
       telegram: this.telegram?.getStatus?.() || { configured: false, running: false },
@@ -1280,24 +1297,54 @@ class ComicTrackerService {
       alreadyIncluded: 0,
       alreadyRejected: 0,
       pendingAlreadyOpen: 0,
+      retried: 0,
+      retryRecovered: 0,
       errors: 0,
       addedTitles: [],
       rejectedTitles: [],
       pendingTitles: [],
-      erroredTitles: []
+      retriedTitles: [],
+      retryRecoveredTitles: [],
+      erroredTitles: [],
+      errorDetails: []
     };
 
     try {
       const trackedCharacters = this.db.getTrackedCharacters();
-      const releases = await fetchWeekReleases({
+      const releases = await this.fetchWeekReleases({
         baseUrl: this.config.marvelBaseUrl,
         weekYear,
         weekNumber
       });
-
+      const membersByTitle = new Map();
+      for (const failure of this.db.listPendingWeeklyFetchFailures?.(100) || []) {
+        membersByTitle.set(failure.pageTitle, {
+          pageTitle: failure.pageTitle,
+          weekYear: failure.weekYear,
+          weekNumber: failure.weekNumber,
+          isRetry: true
+        });
+      }
       for (const member of releases.members) {
+        if (!membersByTitle.has(member.pageTitle)) {
+          membersByTitle.set(member.pageTitle, {
+            ...member,
+            weekYear,
+            weekNumber,
+            isRetry: false
+          });
+        }
+      }
+
+      for (const member of membersByTitle.values()) {
+        const sourceWeekYear = Number(member.weekYear || weekYear);
+        const sourceWeekNumber = Number(member.weekNumber || weekNumber);
+        if (member.isRetry) {
+          summary.retried += 1;
+          summary.retriedTitles.push(member.pageTitle);
+        }
         try {
-          const details = await fetchComicDetails({
+          const details = await this.fetchComicDetails({
             baseUrl: this.config.marvelBaseUrl,
             pageTitle: member.pageTitle
           });
@@ -1307,9 +1354,9 @@ class ComicTrackerService {
           const finalDecision = this.resolveDecision(existing, automaticDecision);
           const comic = this.db.upsertComic({
             ...details,
-            weekYear,
-            weekNumber,
-            weekKey: buildWeekKey(weekYear, weekNumber),
+            weekYear: sourceWeekYear,
+            weekNumber: sourceWeekNumber,
+            weekKey: buildWeekKey(sourceWeekYear, sourceWeekNumber),
             matchSummary: finalDecision.matchSummary,
             originalityStatus: finalDecision.originalityStatus,
             originalityReason: finalDecision.originalityReason,
@@ -1329,9 +1376,26 @@ class ComicTrackerService {
               this.db.attachTelegramMessage(review.id, attached);
             }
           }
+          this.db.resolveWeeklyFetchFailure?.(member.pageTitle);
+          if (member.isRetry) {
+            summary.retryRecovered += 1;
+            summary.retryRecoveredTitles.push(member.pageTitle);
+          }
         } catch (error) {
+          const errorMessage = error?.message || String(error);
           summary.errors += 1;
           summary.erroredTitles.push(member.pageTitle);
+          summary.errorDetails.push({
+            pageTitle: member.pageTitle,
+            weekKey: buildWeekKey(sourceWeekYear, sourceWeekNumber),
+            message: errorMessage
+          });
+          this.db.queueWeeklyFetchFailure?.({
+            pageTitle: member.pageTitle,
+            weekYear: sourceWeekYear,
+            weekNumber: sourceWeekNumber,
+            errorMessage
+          });
           console.error(`Error procesando ${member.pageTitle}:`, error);
         }
       }

@@ -88,32 +88,89 @@ function buildRenderUrl(baseUrl, pageTitle) {
   return `${buildWikiUrl(baseUrl, pageTitle)}?action=render`;
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "ComicTracker/0.1 (+local)"
-    }
-  });
+function buildParseUrl(baseUrl, pageTitle) {
+  const url = new URL(`${String(baseUrl).replace(/\/$/, "")}/api.php`);
+  url.search = new URLSearchParams({
+    action: "parse",
+    page: pageTitle,
+    prop: "text",
+    format: "json",
+    formatversion: "2"
+  }).toString();
+  return url.toString();
+}
 
-  if (!response.ok) {
-    throw new Error(`Marvel API devolvió ${response.status} para ${url}`);
+function isRetryableStatus(status) {
+  return status === 403 || status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function fetchResponseWithRetry(url, {
+  fetchImpl = globalThis.fetch,
+  attempts = 3,
+  retryDelayMs = 150,
+  label = "Marvel"
+} = {}) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetchImpl(url, {
+        headers: {
+          "User-Agent": "ComicTracker/0.1 (+local)"
+        }
+      });
+
+      if (response.ok) return response;
+
+      lastError = new Error(`${label} devolvió ${response.status} para ${url}`);
+      lastError.status = response.status;
+      if (!isRetryableStatus(response.status)) break;
+    } catch (error) {
+      lastError = new Error(`${label} no respondió para ${url}: ${error.message}`, { cause: error });
+    }
+
+    if (attempt < attempts && retryDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs * attempt));
+    }
   }
+
+  throw lastError || new Error(`${label} no respondió para ${url}`);
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetchResponseWithRetry(url, { ...options, label: "Marvel API" });
 
   return response.json();
 }
 
-async function fetchText(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "ComicTracker/0.1 (+local)"
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`Marvel render devolvió ${response.status} para ${url}`);
-  }
-
+async function fetchText(url, options = {}) {
+  const response = await fetchResponseWithRetry(url, { ...options, label: "Marvel render" });
   return response.text();
+}
+
+async function fetchRenderedPageHtml({
+  baseUrl,
+  pageTitle,
+  fetchImpl = globalThis.fetch,
+  retryDelayMs = 150
+}) {
+  const requestOptions = { fetchImpl, retryDelayMs };
+
+  try {
+    return await fetchText(buildRenderUrl(baseUrl, pageTitle), requestOptions);
+  } catch (renderError) {
+    try {
+      const payload = await fetchJson(buildParseUrl(baseUrl, pageTitle), requestOptions);
+      const html = payload?.parse?.text;
+      if (!html) throw new Error("La API no devolvió HTML para la ficha.");
+      return html;
+    } catch (parseError) {
+      throw new Error(
+        `No se pudo obtener ${pageTitle}. action=render: ${renderError.message}; action=parse: ${parseError.message}`,
+        { cause: parseError }
+      );
+    }
+  }
 }
 
 function normalizeHeading(line) {
@@ -797,7 +854,7 @@ async function fetchWeekReleases({ baseUrl, weekYear, weekNumber }) {
 
 async function fetchComicDetails({ baseUrl, pageTitle }) {
   const [html, appearanceCategories] = await Promise.all([
-    fetchText(buildRenderUrl(baseUrl, pageTitle)),
+    fetchRenderedPageHtml({ baseUrl, pageTitle }),
     fetchComicAppearanceCategories({ baseUrl, pageTitle })
   ]);
   const details = parseComicArticleHtml(pageTitle, html, baseUrl);
@@ -809,7 +866,7 @@ async function fetchComicDetails({ baseUrl, pageTitle }) {
 
   if (shouldFetchVolumeMetadata(details)) {
     try {
-      const volumeHtml = await fetchText(buildRenderUrl(baseUrl, details.volumePageTitle));
+      const volumeHtml = await fetchRenderedPageHtml({ baseUrl, pageTitle: details.volumePageTitle });
       details.volumeSourceHtml = volumeHtml;
       details.volumeType = extractVolumeType(volumeHtml);
       details.volumeNotes = extractSectionText(htmlToLines(volumeHtml), "Notes");
@@ -830,6 +887,7 @@ module.exports = {
   evaluateOriginality,
   fetchComicDetails,
   fetchComicAppearanceCategories,
+  fetchRenderedPageHtml,
   fetchWeekReleases,
   parseComicArticleHtml,
   parseAppearanceCategories,

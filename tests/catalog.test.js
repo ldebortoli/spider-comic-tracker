@@ -550,6 +550,28 @@ function lastCompletedSyncRunTest() {
   db.close();
 }
 
+function legacyWeeklyErrorsBackfillTest() {
+  const db = new ComicDatabase(":memory:");
+  const runId = db.createSyncRun({ weekYear: 2026, weekNumber: 29, triggerSource: "test" });
+  db.finishSyncRun(runId, {
+    status: "completed",
+    summary: {
+      errors: 1,
+      erroredTitles: ["Legacy Retry Vol 1 1"],
+      errorDetails: [{ pageTitle: "Legacy Retry Vol 1 1", message: "Cloudflare 403" }]
+    }
+  });
+
+  db.backfillWeeklyFetchFailuresFromSyncRuns();
+  db.backfillWeeklyFetchFailuresFromSyncRuns();
+  const failure = db.getWeeklyFetchFailure("Legacy Retry Vol 1 1");
+  assert.equal(failure.status, "pending");
+  assert.equal(failure.weekKey, "2026-W29");
+  assert.equal(failure.lastError, "Cloudflare 403");
+  assert.equal(failure.attemptCount, 1);
+  db.close();
+}
+
 function futureIssuesStayHiddenTest() {
   const db = new ComicDatabase(":memory:");
   db.upsertCatalogIssues([{
@@ -592,6 +614,7 @@ const tests = [
   ["una revision web se resuelve una sola vez", webReviewDecisionTest],
   ["separa la ultima revision semanal del historial aprobado", weeklyApprovalScopesTest],
   ["ubica la ultima semana completada sin avanzar por corridas fallidas", lastCompletedSyncRunTest],
+  ["recupera errores historicos de revisiones completadas", legacyWeeklyErrorsBackfillTest],
   ["oculta issues futuros hasta su fecha de publicacion", futureIssuesStayHiddenTest]
 ];
 

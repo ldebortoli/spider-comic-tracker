@@ -1,6 +1,13 @@
 const assert = require("node:assert/strict");
 
-const { classifyComic, deriveVolumeInfo, evaluateOriginality, parseAppearanceCategories, parseComicArticleHtml } = require("../src/marvel");
+const {
+  classifyComic,
+  deriveVolumeInfo,
+  evaluateOriginality,
+  fetchRenderedPageHtml,
+  parseAppearanceCategories,
+  parseComicArticleHtml
+} = require("../src/marvel");
 
 function parseComicArticleHtmlTest() {
   const html = `
@@ -177,6 +184,36 @@ function evaluateOriginalityUncertainTest() {
   assert.match(originality.reason, /ISBN/i);
 }
 
+async function renderFallbackTest() {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes("action=render")) {
+      return {
+        ok: false,
+        status: 403,
+        text: async () => "Cloudflare challenge"
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ parse: { text: "<article>Ficha recuperada</article>" } })
+    };
+  };
+
+  const html = await fetchRenderedPageHtml({
+    baseUrl: "https://marvel.fandom.com",
+    pageTitle: "Fallback Test Vol 1 1",
+    fetchImpl,
+    retryDelayMs: 0
+  });
+
+  assert.equal(html, "<article>Ficha recuperada</article>");
+  assert.equal(calls.filter((url) => url.includes("action=render")).length, 3);
+  assert.equal(calls.filter((url) => url.includes("action=parse")).length, 1);
+}
+
 const tests = [
   ["parseComicArticleHtml extrae titulo, fecha, tapa y personajes", parseComicArticleHtmlTest],
   ["deriveVolumeInfo ubica correctamente el volumen", deriveVolumeInfoFromPageTitleTest],
@@ -184,10 +221,16 @@ const tests = [
   ["classifyComic usa las categorías exactas del catálogo unificado", classifyFromCatalogCategoryTest],
   ["classifyComic manda a revision cuando solo hay coincidencia debil", classifyPendingReviewTest],
   ["classifyComic rechaza reediciones evidentes", classifyReprintRejectTest],
-  ["evaluateOriginality marca como duda un tomo sospechoso", evaluateOriginalityUncertainTest]
+  ["evaluateOriginality marca como duda un tomo sospechoso", evaluateOriginalityUncertainTest],
+  ["fetchRenderedPageHtml reintenta y usa action=parse ante Cloudflare", renderFallbackTest]
 ];
 
-for (const [label, fn] of tests) {
-  fn();
-  console.log(`ok - ${label}`);
-}
+(async () => {
+  for (const [label, fn] of tests) {
+    await fn();
+    console.log(`ok - ${label}`);
+  }
+})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
