@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tareas pendientes. La auditoria del selector de enemigos quedo implementada y validada.
+Sin tarea en curso. Se diagnosticaron las dos advertencias de la revisión semanal del 15 de julio de 2026.
 
 ## Estado actual
 
@@ -23,7 +23,10 @@ Sin tareas pendientes. La auditoria del selector de enemigos quedo implementada 
 - Parser y capa de base limpian notas de plantillas de antagonistas antes de guardar.
 - La revision semanal consulta `Category:Week_##,_YYYY` en Marvel Fandom para cada semana faltante, en orden; usa la ultima `sync_run` completada como corte y cruza correctamente cambios de año ISO.
 - Las semanas recuperadas ejecutan una sola vez al final la importacion incremental historica y la revision de fuentes españolas; backups/resumenes Telegram tampoco se repiten por cada semana atrasada.
-- El servidor local estaba apagado al iniciar, se levanto solo para la prueba visual y volvio a quedar apagado al finalizar.
+- La revisión programada `2026-W29` terminó como completada: procesó 22 fichas, agregó 3, rechazó 17, envió 1 a revisión, reconoció 1 rechazo previo y registró 2 errores sobre títulos de Alien.
+- Los dos errores Marvel se reprodujeron como desafíos `403` intermitentes de Cloudflare en `action=render`; ambas páginas existen y `action=parse` responde. Ninguna quedó guardada y, al quedar la semana completada, hoy no se reintentan automáticamente.
+- La importación española registró además 2 `socket hang up` en Universo Marvel. Ambas fichas cargaron y parsearon correctamente durante el diagnóstico; `spanish_source_queue` conserva estado `error` y ya incluye esos estados en ejecuciones posteriores.
+- El servidor local está encendido en `http://localhost:8787` con PID 7548.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos

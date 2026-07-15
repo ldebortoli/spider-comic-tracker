@@ -1,6 +1,6 @@
 # TODO
 
-No hay tareas pendientes.
+- [2026-07-15] Robustecer la revisión semanal de Marvel Fandom ante desafíos intermitentes de Cloudflare: reintentar `action=render`, usar `action=parse` como alternativa, conservar el mensaje de error por ficha y reintentar títulos fallidos aunque la semana avance como completada.
 
 # IN PROGRESS
 
