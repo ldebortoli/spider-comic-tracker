@@ -6,12 +6,13 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tareas pendientes. La recuperación persistente de errores semanales quedó implementada y validada.
+Sin tareas pendientes. La acción **Encender** de los paneles gráficos ya abre automáticamente la aplicación cuando el servidor queda disponible.
 
 ## Estado actual
 
 - El panel compilado y el script PowerShell usan el mismo mutex y rechazan una segunda ventana.
 - Cerrar el panel ahora apaga el servidor; un fallo de apagado cancela el cierre para evitar procesos huerfanos.
+- **Encender** en los paneles gráficos de Windows, Linux y macOS inicia el servidor y abre `http://localhost:8787` solo después de comprobar que el puerto responde; los arranques programados conservan el comportamiento silencioso.
 - `scripts/build-server-control.ps1` recompilo correctamente `bin/SpiderTrackerServerControl.exe` y el script PowerShell pasa el parser.
 - Memoria persistente inicializada el 2026-07-10.
 - Rama detectada: `main`.
@@ -28,7 +29,8 @@ Sin tareas pendientes. La recuperación persistente de errores semanales quedó 
 - `weekly_fetch_failures` conserva títulos fallidos con semana, intentos y último error; `performSync` los incorpora aunque el corte semanal haya avanzado y conserva la semana original al guardarlos.
 - La migración detectó los dos errores históricos de `2026-W29` y los dejó pendientes para la próxima revisión normal. Las dos fichas reales ya se obtienen correctamente con el nuevo lector.
 - La importación española registró además 2 `socket hang up` en Universo Marvel. Ambas fichas cargaron y parsearon correctamente durante el diagnóstico; `spanish_source_queue` conserva estado `error` y ya incluye esos estados en ejecuciones posteriores.
-- El servidor local fue reiniciado con la migración y está encendido en `http://localhost:8787` con PID 16180.
+- Al comenzar la tarea del 2026-07-19, `npm run server:status` informó que el servidor local estaba apagado; el PID 16180 registrado en el handoff anterior ya no estaba activo.
+- La validación visual del 2026-07-19 pulsó **Encender** en el ejecutable compilado: el panel pasó por `INICIANDO`, abrió `Spider Tracker — Mozilla Firefox` al quedar listo y, al cerrar el panel, volvió a dejar el servidor apagado.
 - Antes de trabajar, reconciliar este archivo con el repositorio y los procesos reales.
 
 ## Proximos pasos

@@ -92,7 +92,7 @@ Abrir [http://localhost:8787](http://localhost:8787).
 
 En Windows tambien se puede administrar el servidor con doble clic desde la carpeta del proyecto:
 
-- `PANEL DEL SERVIDOR.cmd` abre el ejecutable grafico `bin/SpiderTrackerServerControl.exe` para encender, apagar, consultar el estado y abrir la aplicacion.
+- `PANEL DEL SERVIDOR.cmd` abre el ejecutable grafico `bin/SpiderTrackerServerControl.exe`. El boton **Encender** inicia el servidor, espera a que la aplicacion este disponible y la abre automaticamente en el navegador; el panel tambien permite apagarla, consultar el estado o volver a abrirla.
 - `INICIAR SERVIDOR.cmd`
 - `APAGAR SERVIDOR.cmd`
 - `ESTADO SERVIDOR.cmd`

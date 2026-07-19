@@ -85,6 +85,7 @@ $refreshButton = New-ControlButton -Text "Actualizar estado" -X 32 -Y 224 -Width
 
 $startButton.BackColor = [System.Drawing.Color]::FromArgb(20, 116, 91)
 $stopButton.BackColor = [System.Drawing.Color]::FromArgb(180, 45, 64)
+$script:OpenApplicationWhenReady = $false
 
 $noteLabel = New-Object System.Windows.Forms.Label
 $noteLabel.Text = "Cerrar este panel también apaga el servidor."
@@ -96,16 +97,22 @@ $form.Controls.Add($noteLabel)
 function Update-ServerStatus {
   $running = Get-TrackerProcess
   if ($running) {
+    $ready = Test-TrackerReady
     Save-TrackerPid -ProcessId $running.ProcessId
-    $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(52, 211, 153)
-    $statusLabel.Text = "SERVIDOR ENCENDIDO"
-    $detailLabel.Text = "http://localhost:$script:ServerPort  -  PID $($running.ProcessId)"
+    $statusPanel.BackColor = if ($ready) { [System.Drawing.Color]::FromArgb(52, 211, 153) } else { [System.Drawing.Color]::FromArgb(250, 204, 21) }
+    $statusLabel.Text = if ($ready) { "SERVIDOR ENCENDIDO" } else { "INICIANDO..." }
+    $detailLabel.Text = if ($ready) { "http://localhost:$script:ServerPort  -  PID $($running.ProcessId)" } else { "Esperando a que responda el puerto $script:ServerPort." }
     $startButton.Enabled = $false
     $stopButton.Enabled = $true
     $openButton.Enabled = $true
+    if ($ready -and $script:OpenApplicationWhenReady) {
+      $script:OpenApplicationWhenReady = $false
+      Start-Process "http://localhost:$script:ServerPort"
+    }
     return
   }
 
+  $script:OpenApplicationWhenReady = $false
   Clear-TrackerPid
   $statusPanel.BackColor = [System.Drawing.Color]::FromArgb(244, 63, 94)
   $statusLabel.Text = "SERVIDOR APAGADO"
@@ -115,8 +122,27 @@ function Update-ServerStatus {
   $openButton.Enabled = $false
 }
 
+function Test-TrackerReady {
+  $client = New-Object System.Net.Sockets.TcpClient
+  $connection = $null
+  try {
+    $connection = $client.BeginConnect("127.0.0.1", $script:ServerPort, $null, $null)
+    if (-not $connection.AsyncWaitHandle.WaitOne(250)) {
+      return $false
+    }
+    $client.EndConnect($connection)
+    return $client.Connected
+  } catch {
+    return $false
+  } finally {
+    if ($connection) { $connection.AsyncWaitHandle.Close() }
+    $client.Close()
+  }
+}
+
 function Start-TrackerFromPanel {
   if (Get-TrackerProcess) {
+    $script:OpenApplicationWhenReady = $true
     Update-ServerStatus
     return
   }
@@ -133,6 +159,7 @@ function Start-TrackerFromPanel {
   }
 
   New-Item -ItemType Directory -Path $script:DataDir -Force | Out-Null
+  $script:OpenApplicationWhenReady = $true
   $node = (Get-Command node -ErrorAction Stop).Source
   $process = Start-Process -FilePath $node `
     -ArgumentList "src/server.js" `
@@ -162,6 +189,7 @@ $startButton.Add_Click({
   try {
     Start-TrackerFromPanel
   } catch {
+    $script:OpenApplicationWhenReady = $false
     [System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
       "Error al iniciar",

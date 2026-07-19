@@ -8,6 +8,7 @@ No hay tareas en curso.
 
 # DONE
 
+- [2026-07-19] Hacer que **Encender** en los paneles gráficos de Windows, Linux y macOS inicie el servidor, espere a que la aplicación esté disponible y la abra automáticamente, sin modificar los arranques programados.
 - [2026-07-15] Robustecer la revisión semanal de Marvel Fandom ante desafíos intermitentes de Cloudflare: reintentar `action=render`, usar `action=parse` como alternativa, conservar el mensaje de error por ficha y reintentar títulos fallidos aunque la semana avance como completada.
 - [2026-07-11] Permitir ordenar el selector de enemigos por cantidad de apariciones o alfabeticamente.
 - [2026-07-11] Corregir la discrepancia por la que un enemigo con 100+ apariciones podia filtrar solo una variante textual y, por lo tanto, muy pocos comics.

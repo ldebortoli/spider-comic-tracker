@@ -64,3 +64,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-15.
 - Decision: reintentar hasta tres veces el HTML `action=render` de Marvel Fandom y usar la API `action=parse` como alternativa. Todo error individual se guarda en `weekly_fetch_failures` con semana original, cantidad de intentos y último mensaje. Las revisiones posteriores procesan primero esa cola, preservan la semana original del cómic y marcan la entrada como resuelta al completar todo el flujo.
 - Motivo: una corrida semanal puede completarse aunque Cloudflare bloquee fichas aisladas; sin una cola separada, avanzar el corte semanal dejaba esos títulos sin una nueva oportunidad automática.
+
+## D-010 - Encender desde un panel abre la aplicación al quedar disponible
+
+- Estado: vigente.
+- Fecha: 2026-07-19.
+- Decision: la acción gráfica **Encender** inicia el servidor, mantiene el estado `INICIANDO` hasta que el puerto local responde y recién entonces abre `http://localhost:8787` en el navegador predeterminado. Los arranques no interactivos y programados siguen sin abrir ventanas.
+- Motivo: evita mostrar una página de error durante el arranque y no interrumpe al usuario cuando una tarea automática solo necesita despertar el servidor.

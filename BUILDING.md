@@ -1,6 +1,6 @@
 # Construccion e instalacion
 
-Spider Tracker usa el mismo servidor Node.js y la misma interfaz web en Windows, Linux y macOS. Solo cambia el panel que enciende y apaga el servidor.
+Spider Tracker usa el mismo servidor Node.js y la misma interfaz web en Windows, Linux y macOS. Solo cambia el panel que enciende y apaga el servidor. En los tres sistemas, **Encender** desde el panel espera a que la aplicación esté disponible y la abre en el navegador.
 
 ## Requisitos comunes
 
@@ -19,7 +19,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-spider-icon.ps1
 powershell -ExecutionPolicy Bypass -File scripts/build-server-control.ps1
 ```
 
-Abrir `PANEL DEL SERVIDOR.cmd`. Para registrar la ejecucion semanal, abrir `INSTALAR ACTUALIZACION SEMANAL.cmd`.
+Abrir `PANEL DEL SERVIDOR.cmd`. El boton **Encender** inicia el servidor y abre la aplicacion en el navegador cuando ya esta disponible. Para registrar la ejecucion semanal, abrir `INSTALAR ACTUALIZACION SEMANAL.cmd`.
 
 ## Linux
 

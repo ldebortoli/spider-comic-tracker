@@ -41,6 +41,18 @@ start_server() {
   fi
 }
 
+wait_for_server() {
+  local attempt
+  for ((attempt = 0; attempt < 40; attempt += 1)); do
+    if (: > /dev/tcp/127.0.0.1/8787) >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  echo "El servidor se inició, pero la aplicación no respondió a tiempo en $URL." >&2
+  return 1
+}
+
 stop_server() {
   local pid
   if pid="$(server_pid)"; then
@@ -65,6 +77,7 @@ status_server() {
 
 open_application() {
   start_server
+  wait_for_server
   if command -v xdg-open >/dev/null 2>&1; then
     xdg-open "$URL" >/dev/null 2>&1 &
   elif command -v open >/dev/null 2>&1; then

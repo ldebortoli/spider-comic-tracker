@@ -19,7 +19,7 @@ while true; do
     --height=360 --width=460 2>/dev/null || true)"
 
   case "$action" in
-    "Encender") message="$($CONTROL start 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
+    "Encender") message="$($CONTROL open 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
     "Apagar") message="$($CONTROL stop 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
     "Abrir aplicación") $CONTROL open ;;
     "Actualizar estado") ;;

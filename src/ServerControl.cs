@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Windows.Forms;
 using ThreadingMutex = System.Threading.Mutex;
 
@@ -44,6 +45,7 @@ namespace SpiderTracker
         private readonly Button stopButton;
         private readonly Button openButton;
         private readonly Timer statusTimer;
+        private bool openApplicationWhenReady;
 
         public ServerControlForm()
         {
@@ -174,12 +176,22 @@ namespace SpiderTracker
             bool running = process != null && !process.HasExited;
             if (running)
             {
-                statusDot.BackColor = Color.FromArgb(52, 211, 153);
-                statusLabel.Text = "SERVIDOR ENCENDIDO";
-                detailLabel.Text = "http://localhost:" + ServerPort + "  -  PID " + process.Id;
+                bool ready = IsApplicationReady();
+                statusDot.BackColor = ready ? Color.FromArgb(52, 211, 153) : Color.FromArgb(250, 204, 21);
+                statusLabel.Text = ready ? "SERVIDOR ENCENDIDO" : "INICIANDO...";
+                detailLabel.Text = ready
+                    ? "http://localhost:" + ServerPort + "  -  PID " + process.Id
+                    : "Esperando a que responda el puerto " + ServerPort + ".";
+
+                if (ready && openApplicationWhenReady)
+                {
+                    openApplicationWhenReady = false;
+                    OpenApplication();
+                }
             }
             else
             {
+                openApplicationWhenReady = false;
                 statusDot.BackColor = Color.FromArgb(244, 63, 94);
                 statusLabel.Text = "SERVIDOR APAGADO";
                 detailLabel.Text = "La aplicación no está disponible.";
@@ -195,6 +207,7 @@ namespace SpiderTracker
         {
             if (GetServerProcess() != null)
             {
+                openApplicationWhenReady = true;
                 UpdateStatus();
                 return;
             }
@@ -207,6 +220,7 @@ namespace SpiderTracker
 
             try
             {
+                openApplicationWhenReady = true;
                 string nodePath = FindNode();
                 Directory.CreateDirectory(dataDir);
                 ProcessStartInfo startInfo = new ProcessStartInfo
@@ -226,7 +240,31 @@ namespace SpiderTracker
             }
             catch (Exception error)
             {
+                openApplicationWhenReady = false;
                 MessageBox.Show(error.Message, "Error al iniciar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static bool IsApplicationReady()
+        {
+            using (TcpClient client = new TcpClient())
+            {
+                IAsyncResult connection = null;
+                try
+                {
+                    connection = client.BeginConnect("127.0.0.1", ServerPort, null, null);
+                    if (!connection.AsyncWaitHandle.WaitOne(250)) return false;
+                    client.EndConnect(connection);
+                    return client.Connected;
+                }
+                catch
+                {
+                    return false;
+                }
+                finally
+                {
+                    if (connection != null) connection.AsyncWaitHandle.Close();
+                }
             }
         }
 
