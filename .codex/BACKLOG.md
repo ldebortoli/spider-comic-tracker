@@ -8,6 +8,7 @@ No hay tareas en curso.
 
 # DONE
 
+- [2026-08-20] Habilitar Secret Scanning y Push Protection en `ldebortoli/spider-comic-tracker` e integrar la auditoria de publicacion en `main`; la configuracion global de la cuenta no fue modificada.
 - [2026-08-20] Verificar que el repositorio ya es publico y auditar los 32 commits y los 72 archivos de `HEAD`: sin secretos ni archivos sensibles versionados; `.env` y `data/` permanecen locales e ignorados. Retirar del contexto actual la ruta absoluta con el usuario de Windows.
 - [2026-07-19] Hacer que **Encender** en los paneles gráficos de Windows, Linux y macOS inicie el servidor, espere a que la aplicación esté disponible y la abra automáticamente, sin modificar los arranques programados.
 - [2026-07-15] Robustecer la revisión semanal de Marvel Fandom ante desafíos intermitentes de Cloudflare: reintentar `action=render`, usar `action=parse` como alternativa, conservar el mensaje de error por ficha y reintentar títulos fallidos aunque la semana avance como completada.

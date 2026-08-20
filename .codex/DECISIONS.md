@@ -71,3 +71,10 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-07-19.
 - Decision: la acción gráfica **Encender** inicia el servidor, mantiene el estado `INICIANDO` hasta que el puerto local responde y recién entonces abre `http://localhost:8787` en el navegador predeterminado. Los arranques no interactivos y programados siguen sin abrir ventanas.
 - Motivo: evita mostrar una página de error durante el arranque y no interrumpe al usuario cuando una tarea automática solo necesita despertar el servidor.
+
+## D-011 - Proteccion preventiva de secretos en GitHub
+
+- Estado: vigente.
+- Fecha: 2026-08-20.
+- Decision: mantener habilitados Secret Scanning y Push Protection en `ldebortoli/spider-comic-tracker`; la preferencia global de Push Protection del usuario no se modifica desde este proyecto.
+- Motivo: detectar credenciales conocidas ya publicadas y bloquear futuros pushes que contengan secretos, sin ampliar cambios a otros repositorios.

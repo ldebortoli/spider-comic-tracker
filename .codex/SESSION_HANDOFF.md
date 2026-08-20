@@ -6,7 +6,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tareas pendientes. La visibilidad y el contenido sensible del repositorio quedaron auditados.
+Sin tareas pendientes. La auditoria de publicacion quedo integrada y las protecciones de secretos estan habilitadas en GitHub.
 
 ## Estado actual
 
@@ -16,7 +16,7 @@ Sin tareas pendientes. La visibilidad y el contenido sensible del repositorio qu
 - El historial no contiene nombres de archivos sensibles. El servidor escucha solo en `127.0.0.1` y el token de Telegram no se devuelve por la API de configuracion.
 - Se retiro de `.codex/CONTEXT.md` la ruta absoluta que exponia el nombre de usuario de Windows. Los commits historicos conservan el nombre y correo personal del autor; no son credenciales, pero eliminarlos requeriria reescribir el historial publicado.
 - La configuracion Git local del repositorio usa desde esta auditoria el correo `noreply` de la cuenta autenticada para no exponer el correo personal en commits futuros.
-- La API de GitHub indico que Secret Scanning esta desactivado para este repositorio; la auditoria local no depende de esa funcion.
+- Secret Scanning y Push Protection quedaron habilitados especificamente para `ldebortoli/spider-comic-tracker` el 2026-08-20. No se modifico la preferencia global de la cuenta; los patrones genericos y las comprobaciones de validez adicionales permanecen deshabilitados.
 - El panel compilado y el script PowerShell usan el mismo mutex y rechazan una segunda ventana.
 - Cerrar el panel ahora apaga el servidor; un fallo de apagado cancela el cierre para evitar procesos huerfanos.
 - **Encender** en los paneles gráficos de Windows, Linux y macOS inicia el servidor y abre `http://localhost:8787` solo después de comprobar que el puerto responde; los arranques programados conservan el comportamiento silencioso.

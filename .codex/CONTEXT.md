@@ -12,6 +12,7 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Rama detectada: `main`
 - Remoto origin: `https://github.com/ldebortoli/spider-comic-tracker.git`
 - Visibilidad remota verificada: publica (`PUBLIC`) al 2026-08-20.
+- Seguridad remota: Secret Scanning y Push Protection habilitados para este repositorio desde el 2026-08-20.
 
 ## Estructura inicial
 
