@@ -6,11 +6,12 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Estado detectado
 
-- Ruta: `C:\Users\calei\Documents\Codex\Analizador de comics`
+- Ruta: usar la raiz Git detectada en cada maquina; no registrar rutas personales absolutas.
 - Stack: Node.js/JavaScript, Python
 - Git: True
 - Rama detectada: `main`
 - Remoto origin: `https://github.com/ldebortoli/spider-comic-tracker.git`
+- Visibilidad remota verificada: publica (`PUBLIC`) al 2026-08-20.
 
 ## Estructura inicial
 

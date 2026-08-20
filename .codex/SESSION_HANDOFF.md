@@ -6,10 +6,17 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 
 ## Tarea actual
 
-Sin tareas pendientes. La acción **Encender** de los paneles gráficos ya abre automáticamente la aplicación cuando el servidor queda disponible.
+Sin tareas pendientes. La visibilidad y el contenido sensible del repositorio quedaron auditados.
 
 ## Estado actual
 
+- El 2026-08-20, GitHub informo que `ldebortoli/spider-comic-tracker` tiene visibilidad `PUBLIC`; no fue necesario cambiarla.
+- Gitleaks 8.30.1 reviso los 32 commits (aprox. 654 KB) sin detectar secretos. Una exportacion exacta de los 72 archivos de `HEAD` produjo un solo falso positivo: `TELEGRAM_BOT_TOKEN=` vacio en `.env.example`.
+- La copia local si contiene valores sensibles en `.env` y datos privados en `data/comics.sqlite*`, pero Git confirma que no estan versionados y `.gitignore` excluye `.env`, `data/`, SQLite, logs, binarios y dependencias.
+- El historial no contiene nombres de archivos sensibles. El servidor escucha solo en `127.0.0.1` y el token de Telegram no se devuelve por la API de configuracion.
+- Se retiro de `.codex/CONTEXT.md` la ruta absoluta que exponia el nombre de usuario de Windows. Los commits historicos conservan el nombre y correo personal del autor; no son credenciales, pero eliminarlos requeriria reescribir el historial publicado.
+- La configuracion Git local del repositorio usa desde esta auditoria el correo `noreply` de la cuenta autenticada para no exponer el correo personal en commits futuros.
+- La API de GitHub indico que Secret Scanning esta desactivado para este repositorio; la auditoria local no depende de esa funcion.
 - El panel compilado y el script PowerShell usan el mismo mutex y rechazan una segunda ventana.
 - Cerrar el panel ahora apaga el servidor; un fallo de apagado cancela el cierre para evitar procesos huerfanos.
 - **Encender** en los paneles gráficos de Windows, Linux y macOS inicia el servidor y abre `http://localhost:8787` solo después de comprobar que el puerto responde; los arranques programados conservan el comportamiento silencioso.
