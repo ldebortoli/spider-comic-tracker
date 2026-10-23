@@ -4,11 +4,13 @@
 
 # IN PROGRESS
 
-- [2026-10-23] Publicar los cambios 0.1.1/0.1.2 y resolver cobertura global en 0.1.3: IN PROGRESS. Los 23 JS, Python, C#, diez PowerShell y cinco Bash tienen 100% de todas sus metricas instrumentables; CMD/AppleScript tienen contratos separados y limites exactos en D-015. Falta concluir checkout limpio y push. La primera pasada limpia detecto autoload de Get-FileHash en el harness; reemplazado por SHA256 de .NET, sin cambios a produccion ni umbrales. No queda un bloqueo de cobertura sin medir en UI/bridge/controles.
+No hay tareas en curso.
 
 # DONE
 
-- [2026-10-23] Implementar candidato HTTP local 0.1.1 con Host/Origin/token, limite streaming, errores/URL seguros, UI/CSV y bridge adaptados, cierre de arbol Windows y fuentes POSIX. Suite local y gates HTTP/Python pasan; limites e incidente inicial registrados en SECURITY_REVIEW_20261023.md. Integracion/publicacion pendientes del gate amplio indicado en TODO.
+- [2026-10-23] Resolver cobertura global y publicar 0.1.3 en main: commit f762daa, push y SHA remoto verificados. Todos los motores instrumentables al 100%: 23 JS, Python, C#, diez PowerShell y cinco Bash; gates estrictos, checkout limpio LF/core.autocrlf=true y WinForms/arboles sinteticos aprobados. CMD completo y contrato AppleScript separados sin porcentajes inventados; prueba nativa macOS pendiente por entorno. CI rapida por push/PR, suites largas manuales; CI remota no monitoreada.
+- [2026-10-23] Completar publicacion del apagado semanal 0.1.2 (9229136) junto con 0.1.1/0.1.3 en main: recibo Telegram final, comprobacion cada minuto y apagado 24 h despues; preserva el scheduler si falla detener Telegram. Solo temporizador interno, ninguna automatizacion AI/tarea Windows duplicada. Sin envios ni DB reales durante validacion.
+- [2026-10-23] Implementar candidato HTTP local 0.1.1 con Host/Origin/token, limite streaming, errores/URL seguros, UI/CSV y bridge adaptados, cierre de arbol Windows y fuentes POSIX. Suite local y gates HTTP/Python pasan; limites e incidente inicial registrados en SECURITY_REVIEW_20261023.md. Integrado/publicado en main junto con el cierre del gate amplio en 0.1.3.
 
 - [2026-10-23] Incorporar la politica CI de USER_QUEUE a D-012: validacion local, push cuando corresponda, ninguna consulta de CI remota salvo pedido actual.
 - [2026-10-23] Reconciliar privacidad GitHub con DONE del 2026-08-20 sin repetir ajustes. Consulta solo lectura: PUBLIC, Secret Scanning/Push Protection enabled; correo Git local noreply. Sin cambios de identidad, remotos, cuentas o protecciones. Los cuatro pedidos historicos de enemigos siguen DONE.

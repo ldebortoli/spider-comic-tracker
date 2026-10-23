@@ -113,3 +113,5 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 
 - Seguimiento D-015 en la misma entrega: una regresion adicional demostro que el cierre HTTP cancelaba el scheduler antes de detener Telegram. Si fallaba esa detencion no quedaba proximo intento. Se mueve la cancelacion del intervalo despues del stop exitoso; prueba con reloj simulado verifica que sigue activo tras fallo y se cancela tras exito. Umbrales HTTP100% conservados.
 - La copia limpia encontro una dependencia del autoload Get-FileHash del harness. El calculo de hashes ahora usa SHA256 de .NET, tanto en bootstrap como en verificacion de fuentes, sin depender de modulos o scopes de Pester.
+
+- Cierre verificado de D-015: integrado por fast-forward y publicado en origin/main como f762daa el 2026-10-23. Se completaron checkout limpio con core.autocrlf=true/LF, gate local completo y WinForms/procesos reales sinteticos. Tras la correccion final del scheduler, gate HTTP y todo JS volvieron a pasar al 100% desde la copia limpia. Sin modificar protecciones ni observar CI remota.
