@@ -108,6 +108,27 @@ La actualización automática semanal ejecuta tres pasos secuenciales: recupera 
 
 El horario tambien se puede activar, desactivar o modificar desde **Configuración**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
+Desde la version **0.1.2**, el resumen semanal se envia al terminar los tres pasos,
+con todas las semanas recuperadas incluidas. Solo un flujo sin errores y un recibo
+confirmado de Telegram (`ok`, chat y mensaje) habilitan el apagado. El recibo se
+persiste en SQLite como `weekly_shutdown_receipt`; no se infiere a partir de una
+corrida marcada como completada ni de mensajes historicos sin recibo.
+
+El temporizador del propio servidor comprueba ese recibo al iniciar y cada minuto,
+incluso si el calendario semanal se desactiva. A las **24 horas de la confirmacion**
+apaga el servidor y su bot si siguen activos. Si hay una revision, importacion o
+actualizacion en curso, espera a que termine. Una corrida posterior fallida o un
+backup fallido impiden el apagado. El recibo conserva el vencimiento al reiniciar
+y se consume antes de cerrar SQLite para no apagar otra vez un arranque posterior.
+No agrega tareas de IA ni otra tarea de Windows: si el servidor ya esta apagado,
+no hay proceso que comprobar ni iniciar para apagarlo.
+
+Pruebas rapidas: `npm test`. Gate del comprobador (100% en lineas, ramas y funciones;
+el motor de Node no informa sentencias por separado): `npm run test:shutdown`.
+Las pruebas usan SQLite sintetica, Telegram simulado y un reloj adelantado; nunca
+requieren esperar 24 horas ni envios reales.
+
+
 La aplicación se organiza en tres pestañas: **Issues USA**, **Panini y ediciones en español** y **Seguimiento complementario**. En la lista USA se puede dejar vacío el selector de personaje para ver todos los issues únicos del universo o grupo elegido.
 
 La interfaz permite lanzar el backfill historico con **Importar o actualizar catalogo 616**. La primera corrida consulta varios miles de fichas y puede tardar varios minutos. Las siguientes corridas actualizan los metadatos sin borrar las marcas de la coleccion.

@@ -1,4 +1,4 @@
-﻿# Spider Tracker - Contexto del proyecto
+# Spider Tracker - Contexto del proyecto
 
 ## Descripcion general
 
@@ -76,3 +76,12 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Importar src/server.js ya no inicia DB, scheduler ni Telegram; createTrackerServer permite pruebas sinteticas.
 - Gates: npm run test:security y npm run test:python-coverage. Cierre Windows: npm run test:windows.
 - Implementacion candidata validada, merge/push pendientes del gate mas amplio indicado en BACKLOG. No adopcion/timer Linux sin host. Incidente de aislamiento inicial documentado; no afirmar datos reales inalterados.
+
+
+## Apagado semanal local 0.1.2 (2026-10-23)
+
+- `src/weekly-shutdown.js` usa el temporizador existente del servidor: comprobacion al iniciar y cada minuto, aun con calendario semanal desactivado. No automatizacion Codex ni nueva tarea Windows.
+- El resumen agregado Telegram se envia al final de USA, catalogo y fuentes espanolas. Solo un flujo sin errores y un recibo `ok` con chat/mensaje habilitan `weekly_shutdown_receipt` en SQLite.
+- Vencimiento: 24 horas despues de confirmacion; respeta las cinco operaciones largas, diferencia corridas posteriores y consume el recibo antes de cerrar servidor/bot/DB. Fallo de apagado deja el recibo reintentable.
+- Gate nuevo: `npm run test:shutdown` exige 100% de lineas, ramas y funciones del comprobador; incluye pruebas sinteticas de pipeline y cierre HTTP/bot. No mide todo el codigo heredado; el bloqueo global de publicacion continua.
+- Windows mantiene unicamente la tarea preexistente de encendido semanal, habilitada. El arbol de trabajo local sera usado por su siguiente arranque; no se arranco el servidor real para probar ni se generaron recibos retroactivos.

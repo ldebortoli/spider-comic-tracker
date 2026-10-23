@@ -1,4 +1,4 @@
-﻿# Decisiones tecnicas
+# Decisiones tecnicas
 
 No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entrada que indique cual reemplaza.
 
@@ -90,3 +90,12 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-10-23. Estado: implementado en candidato; adopcion pendiente del gate registrado.
 - Decision: loopback IPv4, Host/Origin exactos y Fetch Metadata; token aleatorio por proceso en header para API, bootstrap del mismo origen para UI y entorno del hijo para bridge. Cuerpo JSON streaming de 64 KiB y errores inesperados genericos. Sin cambios de cuentas, credenciales Telegram o esquema DB.
 - Motivo: endurecer control HTTP local conservando integraciones. No es aislamiento de procesos hostiles del mismo usuario. Importar server.js no arranca servicios; pruebas siempre con dependencias/cwd sinteticos.
+
+
+## D-014 - Apagar 24 horas despues del envio semanal confirmado
+
+- Fecha: 2026-10-23. Estado: implementado y validado localmente en 0.1.2; publicacion bloqueada por el gate global heredado.
+- Pedido directo de Lucas: si no existia mecanismo equivalente, comprobar al dia siguiente del envio semanal completo y apagar si seguia encendido. Auditoria real: solo tarea Windows de encendido; ninguna automatizacion Codex coincidente.
+- Decision: reutilizar el temporizador interno de un minuto. Mover el resumen agregado al final de los tres pasos; persistir el recibo Telegram (chat/mensaje/confirmacion/vencimiento/corrida), sin secretos. Interpretar dia siguiente como 24 horas desde la confirmacion.
+- No armar por warnings, fallos de fichas/catalogos/backups ni acuses incompletos. Diferir mientras cualquiera de las cinco operaciones largas esta activa. Una corrida mas nueva invalida el recibo anterior; uno consumido no apaga un arranque posterior. Un recibo pendiente conserva el plazo si se reinicia antes de consumirse.
+- Reutilizar el cierre existente de HTTP, bot y SQLite. Sin tareas AI, nuevos procesos de monitorizacion ni inicio del servidor para apagarlo. No inferir confirmaciones historicas ni enviar mensajes Telegram reales durante la validacion.

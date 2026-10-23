@@ -7,6 +7,7 @@ const { discoverCatalogRoster, importCharacterCatalogs } = require("./catalog");
 const { buildCharacterRows, classifyComic, fetchComicDetails, fetchWeekReleases } = require("./marvel");
 const { importPaniniCatalog } = require("./panini");
 const { importUniversoMarvelCatalog } = require("./universo-marvel");
+const { WeeklyShutdown } = require("./weekly-shutdown");
 const {
   buildWeekKey,
   getIsoWeekInfo,
@@ -79,6 +80,7 @@ function aggregateWeeklyReviews(weekSummaries) {
     fromWeekKey: first.weekKey || "",
     toWeekKey: last.weekKey || "",
     weeksReviewed: weekSummaries.length,
+    backupFailed: weekSummaries.some((item) => item.backupFailed),
     weekSummaries
   };
 
@@ -172,6 +174,7 @@ class ComicTrackerService {
     this.db = db;
     this.config = config;
     this.telegram = null;
+    this.weeklyShutdown = new WeeklyShutdown({ service: this });
     this.currentSyncPromise = null;
     this.currentCatalogImportPromise = null;
     this.currentPaniniImportPromise = null;
@@ -945,17 +948,18 @@ class ComicTrackerService {
 
     this.ensureQuarterlyRefreshBaseline();
 
-    this.schedulerHandle = setInterval(() => {
-      this.maybeRunScheduledSync().catch((error) => {
-        console.error("Error en scheduler semanal:", error);
-      });
-      this.maybeRunQuarterlyRefresh();
-    }, 60 * 1000);
+    this.schedulerHandle = setInterval(() => this.runScheduledTasks(), 60 * 1000);
+    this.runScheduledTasks();
+  }
 
-    this.maybeRunScheduledSync().catch((error) => {
-      console.error("Error inicial del scheduler:", error);
-    });
-    this.maybeRunQuarterlyRefresh();
+  async runScheduledTasks() {
+    try {
+      if (await this.weeklyShutdown.check()) return;
+      await this.maybeRunScheduledSync();
+      this.maybeRunQuarterlyRefresh();
+    } catch (error) {
+      console.error("Error en scheduler semanal:", error);
+    }
   }
 
   async maybeRunScheduledSync() {
@@ -1085,6 +1089,7 @@ class ComicTrackerService {
           triggerSource,
           weekYear: reviewWeek.weekYear,
           weekNumber: reviewWeek.weekNumber,
+          deferSummary: true,
           runSideEffects: index === plannedWeeks.length - 1
         });
         reviewSummaries.push(await this.currentSyncPromise);
@@ -1177,6 +1182,7 @@ class ComicTrackerService {
         }
       };
       this.saveWeeklyUpdateStatus(completed);
+      await this.weeklyShutdown.confirm(completed);
       return completed;
     } catch (error) {
       this.currentSyncPromise = null;
@@ -1286,7 +1292,7 @@ class ComicTrackerService {
     }
   }
 
-  async performSync({ triggerSource, weekYear, weekNumber, runSideEffects = true }) {
+  async performSync({ triggerSource, weekYear, weekNumber, runSideEffects = true, deferSummary = false }) {
     const runId = this.db.createSyncRun({ weekYear, weekNumber, triggerSource });
     const summary = {
       weekKey: buildWeekKey(weekYear, weekNumber),
@@ -1413,10 +1419,11 @@ class ComicTrackerService {
             weekNumber
           });
         } catch (backupError) {
+          summary.backupFailed = true;
           console.error("Error generando o enviando backup:", backupError);
         }
 
-        if (this.telegram && this.telegram.canSendSummary()) {
+        if (!deferSummary && this.telegram && this.telegram.canSendSummary()) {
           await this.telegram.sendSummary({
             ...summary,
             triggerSource,

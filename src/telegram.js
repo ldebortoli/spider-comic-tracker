@@ -373,7 +373,7 @@ class TelegramBridge {
       chunks.push("", `Pendientes: ${summary.pendingTitles.slice(0, 8).join(", ")}`);
     }
 
-    await this.call("sendMessage", {
+    return this.call("sendMessage", {
       chat_id: this.config.summaryChatId,
       text: chunks.join("\n"),
       disable_web_page_preview: true

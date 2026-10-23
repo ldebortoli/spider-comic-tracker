@@ -1,11 +1,11 @@
-﻿# TODO
+# TODO
 
 - [BLOCKED 2026-10-23] Gate de cobertura mas amplio: 100% medido en nucleo HTTP y Python; falta medicion del codigo mantenido de UI/bridge JS y C#/PowerShell. MERGE/push pendientes del gate o excepcion autorizada.
 - [BLOCKED 2026-10-23] Adopcion Linux timer: host desconocido; no desplegar. Cierre nativo Linux/macOS y compilacion AppleScript requieren esos entornos.
 
 # IN PROGRESS
 
-No hay tareas en curso.
+- [2026-10-23] Apagado semanal 0.1.2 [BLOCKED: publicacion/merge requieren resolver el gate global heredado de cobertura 100% de UI/bridge JS y C#/PowerShell; no hay excepcion autorizada]. Implementacion local lista: confirmacion Telegram al final de todo el flujo, recibo SQLite y apagado de servidor/bot 24 h despues, con espera de operaciones. Validacion: suite completa, gates shutdown/HTTP/Python 100% y cierre Windows sintetico; commit local, sin push. No falta configurar una tarea externa: el temporizador interno se usa en el proximo arranque semanal.
 
 # DONE
 

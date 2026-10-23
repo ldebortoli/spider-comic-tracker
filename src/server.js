@@ -562,10 +562,12 @@ function startTracker() {
     telegram.start();
     console.log(`Comic tracker disponible en http://localhost:${config.port}`);
   });
-  const shutdown = () => server.shutdown().then(() => process.exit(0), () => {
+  const shutdown = () => server.shutdown().then(() => { process.exit(0); return true; }, () => {
     process.exitCode = 1;
     console.error("No se pudo detener el proceso administrado; se mantiene el servidor para reintentar.");
+    return false;
   });
+  service.weeklyShutdown.shutdown = shutdown;
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
   return server;
