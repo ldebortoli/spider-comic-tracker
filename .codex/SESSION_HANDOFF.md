@@ -1,3 +1,18 @@
+# Cobertura global 0.1.3 - validacion final y publicacion en curso
+
+- Rama codex/weekly-shutdown, base local 9229136. Todos los componentes instrumentables pasan sus gates100%; ver COVERAGE_20261023.md para alcance y contadores exactos. No confundir el baseline JS cargado70.50% con un inventario global.
+- JS23 archivos:11566/11566 lineas,3686/3686 ramas,803/803 funciones; Python146 sentencias/34 ramas; C#244 lineas/214 puntos/38 ramas explicitas/19 metodos; PowerShell489 comandos; Bash266 comandos/6 funciones. Todos100%.
+- CMD seis wrappers ejecutados completos; AppleScript contrato estatico aprobado pero no tiene cobertura ejecutable en Windows. MacOS nativo permanece pendiente, porcentaje null. Excepcion tecnica documentada D-015, ningun modulo instrumentable omitido.
+- Fuentes/testhelpers y CI listos, revision independiente sin hallazgos. Cambios reales de comportamiento: fix camposwiki vacios, cancelacion de cierre PowerShell y rutas Linux con espacios; DI importadores conserva defaults. Version package/lock/README0.1.3.
+- Proximo paso inmediato: checkout limpio del indice con core.autocrlf=true/.gitattributesLF, npmci y gatecompleto + test:windows; commit y push despues. No hay otros writers activos ni listener8787, no usar datos reales. CI no se monitorea.
+
+# Trabajo actual: cobertura global y publicacion
+
+- Pedido directo posterior: resolver cobertura global100% y subir cambios. Reemplaza la condicion de entrega local pendiente, no autoriza rebajar el gate.
+- Baseline Node 70.50% lineas /76.56% ramas /75.72% funciones en modulos cargados; public/app.js y scripts aun ausentes. Inventariar todos los fuentes para fallar por archivos no ejecutados.
+- Plan registrado en COVERAGE_PLAN.md. Trabajo paralelo autorizado por la seccion Parallelization Opportunities del skill planning-and-task-breakdown: tests de implementaciones existentes independientes; raiz coordina gates, scripts y controles nativos, agentes separados DB/servicio, parsers y UI/bridge/runtime.
+- Nunca usar DB/env/Telegram reales en pruebas; no usar captura nativa incompatible. No monitorear CI tras push.
+
 # Entrega local 2026-10-23 ART - apagado semanal 0.1.2
 
 ## Estado actual

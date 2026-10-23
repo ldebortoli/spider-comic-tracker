@@ -246,3 +246,47 @@ y los controles. En Windows recompilar el panel con
 el candidato de pruebas no reemplaza `bin/`. Ver evidencia, incidente de la
 validacion inicial, limites y rollback en
 [el informe del lote](.codex/SECURITY_REVIEW_20261023.md).
+
+
+## Version actual y validacion (version **0.1.3**)
+
+Instalar dependencias de desarrollo con `npm ci` (Node 24.15 o posterior) y
+`python -m pip install -r requirements-dev.txt`.
+
+- `npm test`: pruebas deterministas de JavaScript y Python, con SQLite temporal y
+  transportes simulados; no requiere Telegram, configuracion o datos habituales.
+- `npm run test:coverage`: gate local completo. Exige 100% de cada metrica que
+  expone cada motor y rechaza fuentes de produccion sin instrumentar.
+- `npm run test:coverage:node`:23 fuentes JS de src/, public/ y scripts/, incluido
+  app.js completo bajo JSDOM. Node V8 mide lineas, ramas y funciones; el gate
+  inspecciona los contadores LCOV sin redondear y verifica el inventario completo.
+- `npm run test:coverage:native`: panel C# y diez scripts PowerShell, mas pruebas
+  reales de los seis lanzadores CMD con ejecutables de frontera sinteticos.
+- `npm run test:posix`: cobertura de comandos y funciones de los cinco scripts
+  Bash con Git Bash, archivos temporales, HOME sintetico y fronteras de SO falsas.
+  El caso de conexion TCP rechazada puede tardar mas de un minuto en Windows.
+- `npm run test:windows`: integracion real del compilador/WinForms y apagado de
+  arboles sinteticos; no reemplaza el panel habitual.
+- `npm run test:full`: todas las anteriores, incluida la cobertura completa.
+
+Los reportes son locales en data/coverage/ y no se versionan. Python coverage
+mide sentencias/lineas y ramas. Pester 5.7.1 mide comandos ejecutables (no publica
+metricas independientes de ramas/funciones). AltCover 9.0.145 instrumenta todo el
+fuente C# sin modificarlo: el gate comprueba cada SequencePoint, BranchPoint y
+metodo de produccion. La suma resumida de AltCover agrega ramas ficticias a
+metodos sin bifurcaciones; se usan sus registros BranchPoint explicitos, sin
+alterar el reporte ni excluir instrucciones. Los dobles de framework y el
+harness son fuentes de prueba, y se complementan con test:windows sobre WinForms
+y procesos reales sinteticos.
+
+CMD no ofrece un motor de cobertura: cada wrapper completo se ejecuta byte por
+byte en un directorio con espacios, validando cwd/argumentos y la estructura sin
+ramas. AppleScript tampoco ofrece un motor de cobertura utilizable en Windows:
+su plantilla conserva una prueba de contrato separada y no recibe un porcentaje
+inventado. La compilacion/ejecucion nativa de esa UI requiere macOS y queda como
+validacion de plataforma pendiente, sin afectar la medicion de los motores
+instrumentables. No se excluye ningun modulo instrumentable de produccion.
+
+La CI por push/PR corre solo los gates rapidos en Windows. La suite completa
+POSIX y la integracion nativa adicional se disparan manualmente. No se consulta
+ni espera su resultado remoto despues de un push por defecto.

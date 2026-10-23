@@ -1,0 +1,61 @@
+name: Local coverage gates
+
+on:
+  push:
+    branches: [main, 'codex/**']
+    paths: ['src/**', 'public/**', 'scripts/**', 'tests/**', 'package*.json', 'requirements*.txt', '.gitattributes', '.github/workflows/**']
+  pull_request:
+    paths: ['src/**', 'public/**', 'scripts/**', 'tests/**', 'package*.json', 'requirements*.txt', '.gitattributes', '.github/workflows/**']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run slower POSIX coverage and real native process integration
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - uses: actions/cache@v6
+        with:
+          path: data/coverage-tools
+          key: coverage-tools-${{ runner.os }}-${{ hashFiles('tests/install-coverage-tools.ps1') }}
+      - run: npm ci --ignore-scripts
+      - run: python -m pip install -r requirements-dev.txt
+      - name: JavaScript full source inventory and exact 100 percent
+        run: npm run test:coverage:node
+      - name: Python exact 100 percent
+        run: npm run test:python-coverage
+      - name: CSharp PowerShell and CMD contracts
+        run: npm run test:coverage:native
+      - name: Optional slow POSIX source coverage
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+        run: npm run test:posix
+      - name: Optional real WinForms and process tree integration
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full }}
+        run: npm run test:windows

@@ -10,7 +10,7 @@ if ! command -v zenity >/dev/null 2>&1; then
 fi
 
 while true; do
-  status="$($CONTROL status 2>/dev/null || true)"
+  status="$("$CONTROL" status 2>/dev/null || true)"
   action="$(zenity --list \
     --title="Spider Tracker - Servidor" \
     --text="Estado: $status" \
@@ -19,12 +19,12 @@ while true; do
     --height=360 --width=460 2>/dev/null || true)"
 
   case "$action" in
-    "Encender") message="$($CONTROL open 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
-    "Apagar") message="$($CONTROL stop 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
-    "Abrir aplicación") $CONTROL open ;;
+    "Encender") message="$("$CONTROL" open 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
+    "Apagar") message="$("$CONTROL" stop 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
+    "Abrir aplicación") "$CONTROL" open ;;
     "Actualizar estado") ;;
     *)
-      if message="$($CONTROL stop 2>&1)"; then exit 0; fi
+      if message="$("$CONTROL" stop 2>&1)"; then exit 0; fi
       zenity --error --text="$message" --width=420
       ;;
   esac

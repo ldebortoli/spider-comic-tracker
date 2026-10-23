@@ -17,13 +17,10 @@ const {
   uniqueStrings
 } = require("./utils");
 
-function isLeapYear(year) {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-
 function isoWeeksInYear(year) {
   const januaryFirstDay = new Date(Date.UTC(year, 0, 1)).getUTCDay();
-  return januaryFirstDay === 4 || (januaryFirstDay === 3 && isLeapYear(year)) ? 53 : 52;
+  const decemberLastDay = new Date(Date.UTC(year, 11, 31)).getUTCDay();
+  return januaryFirstDay === 4 || decemberLastDay === 4 ? 53 : 52;
 }
 
 function compareIsoWeeks(left, right) {
@@ -53,8 +50,9 @@ function buildCatchUpWeeks(lastCompleted, target) {
 }
 
 function aggregateWeeklyReviews(weekSummaries) {
-  const first = weekSummaries[0] || {};
-  const last = weekSummaries[weekSummaries.length - 1] || {};
+  // The review planner always yields at least the requested week.
+  const first = weekSummaries[0];
+  const last = weekSummaries[weekSummaries.length - 1];
   const numericFields = [
     "processed",
     "added",
@@ -170,7 +168,7 @@ function formatBytes(bytes) {
 }
 
 class ComicTrackerService {
-  constructor({ db, config, marvelClient = {} }) {
+  constructor({ db, config, marvelClient = {}, catalogClient = {}, paniniClient = {} }) {
     this.db = db;
     this.config = config;
     this.telegram = null;
@@ -184,6 +182,10 @@ class ComicTrackerService {
     this.enemyOptionCache = new Map();
     this.fetchWeekReleases = marvelClient.fetchWeekReleases || fetchWeekReleases;
     this.fetchComicDetails = marvelClient.fetchComicDetails || fetchComicDetails;
+    this.discoverCatalogRoster = catalogClient.discoverCatalogRoster || discoverCatalogRoster;
+    this.importCharacterCatalogs = catalogClient.importCharacterCatalogs || importCharacterCatalogs;
+    this.importPaniniCatalog = paniniClient.importPaniniCatalog || importPaniniCatalog;
+    this.importUniversoMarvelCatalog = paniniClient.importUniversoMarvelCatalog || importUniversoMarvelCatalog;
   }
 
   attachTelegram(telegram) {
@@ -796,14 +798,14 @@ class ComicTrackerService {
 
     try {
       if (!characterSlug) {
-        const roster = await discoverCatalogRoster({ baseUrl: this.config.marvelBaseUrl });
+        const roster = await this.discoverCatalogRoster({ baseUrl: this.config.marvelBaseUrl });
         this.db.upsertCatalogCharacters(roster);
       }
 
       const characters = characterSlug
         ? this.db.listCatalogCharacters().filter((character) => character.slug === characterSlug)
         : this.db.listCatalogCharacters();
-      const result = await importCharacterCatalogs({
+      const result = await this.importCharacterCatalogs({
         baseUrl: this.config.marvelBaseUrl,
         characters,
         concurrency: 5,
@@ -867,7 +869,7 @@ class ComicTrackerService {
       let official = null;
       let officialError = "";
       try {
-        official = await importPaniniCatalog({
+        official = await this.importPaniniCatalog({
           listingUrl: this.config.panini.listingUrl,
           knownUrls: new Set(this.db.listKnownPaniniProductUrls()),
           pendingProducts: this.db.listPendingPaniniProducts().filter((item) => !String(item.sourceKey || "").startsWith("um-")),
@@ -884,7 +886,7 @@ class ComicTrackerService {
         this.db.setState("panini_full_scan_completed", "true");
       }
 
-      const universoMarvel = await importUniversoMarvelCatalog({
+      const universoMarvel = await this.importUniversoMarvelCatalog({
         db: this.db,
         indexBatch: effectiveFull ? 75 : 25,
         productBatch: effectiveFull ? 500 : 100,

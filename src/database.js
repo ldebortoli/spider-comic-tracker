@@ -80,7 +80,7 @@ function cleanEnemyNameForStorage(value) {
 }
 
 function uniqueEnemyNames(items) {
-  return uniqueStrings((items || []).map(cleanEnemyNameForStorage).filter(Boolean));
+  return uniqueStrings(items.map(cleanEnemyNameForStorage).filter(Boolean));
 }
 
 const SEEDED_TRACKED_CHARACTERS = [
@@ -1267,7 +1267,7 @@ class ComicDatabase {
       return this.statements.volumeByPageTitle.get(volume.volumePageTitle);
     }
 
-    const result = this.statements.volumeInsert.run(
+    this.statements.volumeInsert.run(
       volume.volumePageTitle,
       volume.volumeName,
       volume.seriesName,
@@ -1278,7 +1278,7 @@ class ComicDatabase {
       now
     );
 
-    return this.statements.volumeByPageTitle.get(volume.volumePageTitle) || { id: Number(result.lastInsertRowid) };
+    return this.statements.volumeByPageTitle.get(volume.volumePageTitle);
   }
 
   getTrackedCharacters() {
@@ -1488,7 +1488,7 @@ class ComicDatabase {
   }
 
   getWeeklyFetchFailureStats() {
-    const row = this.statements.weeklyFetchFailureStats.get() || {};
+    const row = this.statements.weeklyFetchFailureStats.get();
     return {
       pending: Number(row.pending || 0),
       resolved: Number(row.resolved || 0)
@@ -1537,7 +1537,7 @@ class ComicDatabase {
   }
 
   getDashboardStats() {
-    const counts = this.statements.dashboardCounts.get() || {};
+    const counts = this.statements.dashboardCounts.get();
 
     return {
       includedCount: Number(counts.included_count || 0),
@@ -1818,7 +1818,7 @@ class ComicDatabase {
     const counts = new Map();
 
     for (const row of rows) {
-      addEnemyCount(counts, row.name, Number(row.count || 0));
+      addEnemyCount(counts, row.name, Number(row.count));
     }
 
     return buildEnemyOptionGroups(counts);
@@ -2055,7 +2055,7 @@ class ComicDatabase {
       LEFT JOIN catalog_character_issues ci ON ci.character_id = c.id
       LEFT JOIN spiderman_catalog_issues i ON i.id = ci.issue_id
       WHERE ${scope.conditions.join(" AND ")}
-    `).get(...scope.params) || {};
+    `).get(...scope.params);
     const totalCount = Number(row.total_count || 0);
     const ownedCount = Number(row.owned_count || 0);
 
@@ -2441,7 +2441,7 @@ class ComicDatabase {
         SUM(CASE WHEN status = 'matched' THEN 1 ELSE 0 END) AS matched,
         MAX(last_checked_at) AS last_checked_at
       FROM panini_products
-    `).get() || {};
+    `).get();
     const characterMap = new Map();
 
     for (const name of allItems.flatMap((edition) => edition.characters)) {
@@ -2646,7 +2646,7 @@ class ComicDatabase {
              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
              SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS errors
       FROM spanish_source_queue WHERE source = ?
-    `).get(source) || {};
+    `).get(source);
     return Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value || 0)]));
   }
 
@@ -2784,7 +2784,7 @@ class ComicDatabase {
       `).run(
         sourceKey, product.title || sourceKey, productUrl, product.coverImageUrl || "", product.publicationDate || null,
         product.pages || null, product.isbn || "", product.formatLabel || "", containsRaw, status, editionId,
-        JSON.stringify(match.unresolved || []), existingProduct?.first_seen_at || now, now, now, now
+        JSON.stringify(match.unresolved), existingProduct?.first_seen_at || now, now, now, now
       );
       this.db.exec("COMMIT;");
     } catch (error) {

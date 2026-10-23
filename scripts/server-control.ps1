@@ -225,10 +225,11 @@ $timer.Add_Tick({ Update-ServerStatus })
 $timer.Start()
 
 $form.Add_FormClosing({
+  param($sender, $eventArgs)
   try {
     Stop-TrackerFromPanel
   } catch {
-    $_.Cancel = $true
+    $eventArgs.Cancel = $true
     [System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
       "No se pudo apagar el servidor",

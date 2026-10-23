@@ -1,0 +1,1094 @@
+{
+  "metric": "Bash DEBUG executable command locations, including nested substitutions and loop control; source hashes freeze the reviewed inventory. Shell syntax-only delimiters and function-entry pseudo-events are not executable commands.",
+  "files": {
+    "build-macos-app.sh": {
+      "sha256": "013b799e7933461964b86e48485dc35c03045431d56d194d98c727924d662ff3",
+      "commands": [
+        {
+          "line": 2,
+          "command": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "command": "SCRIPT_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\""
+        },
+        {
+          "line": 4,
+          "command": "CDPATH= cd -- \"$(dirname -- \"$0\")\""
+        },
+        {
+          "line": 4,
+          "command": "dirname -- \"$0\""
+        },
+        {
+          "line": 4,
+          "command": "pwd"
+        },
+        {
+          "line": 5,
+          "command": "PROJECT_ROOT=\"$(dirname \"$SCRIPT_DIR\")\""
+        },
+        {
+          "line": 5,
+          "command": "dirname \"$SCRIPT_DIR\""
+        },
+        {
+          "line": 6,
+          "command": "DIST_DIR=\"$PROJECT_ROOT/dist/macos\""
+        },
+        {
+          "line": 7,
+          "command": "APP_PATH=\"$DIST_DIR/Spider Tracker Server.app\""
+        },
+        {
+          "line": 8,
+          "command": "SOURCE_TEMPLATE=\"$PROJECT_ROOT/packaging/macos/SpiderTrackerServer.applescript.in\""
+        },
+        {
+          "line": 9,
+          "command": "GENERATED_SOURCE=\"$DIST_DIR/SpiderTrackerServer.applescript\""
+        },
+        {
+          "line": 11,
+          "command": "command -v osacompile > /dev/null 2>&1"
+        },
+        {
+          "line": 11,
+          "command": "echo \"Este build debe ejecutarse en macOS.\" 1>&2"
+        },
+        {
+          "line": 11,
+          "command": "exit 1"
+        },
+        {
+          "line": 13,
+          "command": "mkdir -p \"$DIST_DIR\""
+        },
+        {
+          "line": 14,
+          "command": "escaped_root=\"$(printf '%s' \"$PROJECT_ROOT\" | sed 's/[&|]/\\\\&/g')\""
+        },
+        {
+          "line": 14,
+          "command": "printf '%s' \"$PROJECT_ROOT\""
+        },
+        {
+          "line": 14,
+          "command": "sed 's/[&|]/\\\\&/g'"
+        },
+        {
+          "line": 15,
+          "command": "sed \"s|__PROJECT_ROOT__|$escaped_root|g\" \"$SOURCE_TEMPLATE\" > \"$GENERATED_SOURCE\""
+        },
+        {
+          "line": 16,
+          "command": "rm -rf \"$APP_PATH\""
+        },
+        {
+          "line": 17,
+          "command": "osacompile -o \"$APP_PATH\" \"$GENERATED_SOURCE\""
+        },
+        {
+          "line": 19,
+          "command": "ICONSET=\"$DIST_DIR/SpiderTracker.iconset\""
+        },
+        {
+          "line": 20,
+          "command": "mkdir -p \"$ICONSET\""
+        },
+        {
+          "line": 21,
+          "command": "for spec in \"16 icon_16x16\" \"32 icon_16x16@2x\" \"32 icon_32x32\" \"64 icon_32x32@2x\" \"128 icon_128x128\" \"256 icon_128x128@2x\" \"256 icon_256x256\" \"512 icon_256x256@2x\" \"512 icon_512x512\" \"1024 icon_512x512@2x\""
+        },
+        {
+          "line": 22,
+          "command": "size=\"${spec%% *}\""
+        },
+        {
+          "line": 23,
+          "command": "name=\"${spec#* }\""
+        },
+        {
+          "line": 24,
+          "command": "sips -z \"$size\" \"$size\" \"$PROJECT_ROOT/assets/spider-tracker-icon.png\" --out \"$ICONSET/$name.png\" > /dev/null"
+        },
+        {
+          "line": 26,
+          "command": "iconutil -c icns \"$ICONSET\" -o \"$APP_PATH/Contents/Resources/applet.icns\""
+        },
+        {
+          "line": 27,
+          "command": "rm -rf \"$ICONSET\""
+        },
+        {
+          "line": 29,
+          "command": "echo \"$APP_PATH\""
+        }
+      ]
+    },
+    "install-linux.sh": {
+      "sha256": "c2f58569b04bd965a9615ce21b9197f579dfb891497d8ad57894faf6df6ea4c5",
+      "commands": [
+        {
+          "line": 2,
+          "command": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "command": "SCRIPT_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\""
+        },
+        {
+          "line": 4,
+          "command": "CDPATH= cd -- \"$(dirname -- \"$0\")\""
+        },
+        {
+          "line": 4,
+          "command": "dirname -- \"$0\""
+        },
+        {
+          "line": 4,
+          "command": "pwd"
+        },
+        {
+          "line": 5,
+          "command": "PROJECT_ROOT=\"$(dirname \"$SCRIPT_DIR\")\""
+        },
+        {
+          "line": 5,
+          "command": "dirname \"$SCRIPT_DIR\""
+        },
+        {
+          "line": 6,
+          "command": "APPLICATIONS_DIR=\"$HOME/.local/share/applications\""
+        },
+        {
+          "line": 7,
+          "command": "SYSTEMD_DIR=\"$HOME/.config/systemd/user\""
+        },
+        {
+          "line": 9,
+          "command": "command -v node > /dev/null 2>&1"
+        },
+        {
+          "line": 9,
+          "command": "echo \"Node.js 22 o superior es obligatorio.\" 1>&2"
+        },
+        {
+          "line": 9,
+          "command": "exit 1"
+        },
+        {
+          "line": 10,
+          "command": "command -v zenity > /dev/null 2>&1"
+        },
+        {
+          "line": 10,
+          "command": "echo \"Instalá Zenity antes de continuar.\" 1>&2"
+        },
+        {
+          "line": 10,
+          "command": "exit 1"
+        },
+        {
+          "line": 12,
+          "command": "mkdir -p \"$APPLICATIONS_DIR\" \"$SYSTEMD_DIR\""
+        },
+        {
+          "line": 13,
+          "command": "chmod +x \"$PROJECT_ROOT/scripts/server-control-posix.sh\" \"$PROJECT_ROOT/scripts/server-control-linux.sh\""
+        },
+        {
+          "line": 15,
+          "command": "schedule_day=\"WEDNESDAY\""
+        },
+        {
+          "line": 16,
+          "command": "schedule_hour=\"12\""
+        },
+        {
+          "line": 17,
+          "command": "schedule_minute=\"00\""
+        },
+        {
+          "line": 18,
+          "command": "schedule_enabled=\"true\""
+        },
+        {
+          "line": 19,
+          "command": "[[ -f \"$PROJECT_ROOT/.env\" ]]"
+        },
+        {
+          "line": 20,
+          "command": "schedule_enabled=\"$(sed -n 's/^SCHEDULE_ENABLED=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 20,
+          "command": "sed -n 's/^SCHEDULE_ENABLED=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 20,
+          "command": "tail -1"
+        },
+        {
+          "line": 20,
+          "command": "schedule_enabled=\"${schedule_enabled:-true}\""
+        },
+        {
+          "line": 21,
+          "command": "schedule_day=\"$(sed -n 's/^SCHEDULE_DAY=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 21,
+          "command": "sed -n 's/^SCHEDULE_DAY=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 21,
+          "command": "tail -1"
+        },
+        {
+          "line": 21,
+          "command": "schedule_day=\"${schedule_day:-WEDNESDAY}\""
+        },
+        {
+          "line": 22,
+          "command": "schedule_hour=\"$(sed -n 's/^SCHEDULE_HOUR=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 22,
+          "command": "sed -n 's/^SCHEDULE_HOUR=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 22,
+          "command": "tail -1"
+        },
+        {
+          "line": 22,
+          "command": "schedule_hour=\"${schedule_hour:-12}\""
+        },
+        {
+          "line": 23,
+          "command": "schedule_minute=\"$(sed -n 's/^SCHEDULE_MINUTE=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 23,
+          "command": "sed -n 's/^SCHEDULE_MINUTE=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 23,
+          "command": "tail -1"
+        },
+        {
+          "line": 23,
+          "command": "schedule_minute=\"${schedule_minute:-0}\""
+        },
+        {
+          "line": 25,
+          "command": "case \"$schedule_day\" in "
+        },
+        {
+          "line": 26,
+          "command": "calendar_day=\"Wed\""
+        },
+        {
+          "line": 26,
+          "command": "calendar_day=\"Mon\""
+        },
+        {
+          "line": 26,
+          "command": "calendar_day=\"Tue\""
+        },
+        {
+          "line": 27,
+          "command": "calendar_day=\"Thu\""
+        },
+        {
+          "line": 27,
+          "command": "calendar_day=\"Fri\""
+        },
+        {
+          "line": 27,
+          "command": "calendar_day=\"Sat\""
+        },
+        {
+          "line": 27,
+          "command": "calendar_day=\"Sun\""
+        },
+        {
+          "line": 28,
+          "command": "echo \"SCHEDULE_DAY no válido: $schedule_day\" 1>&2"
+        },
+        {
+          "line": 28,
+          "command": "exit 1"
+        },
+        {
+          "line": 30,
+          "command": "schedule_time=\"$(printf '%02d:%02d' \"$schedule_hour\" \"$schedule_minute\")\""
+        },
+        {
+          "line": 30,
+          "command": "printf '%02d:%02d' \"$schedule_hour\" \"$schedule_minute\""
+        },
+        {
+          "line": 32,
+          "command": "sed \"s|__PROJECT_ROOT__|$PROJECT_ROOT|g\" \"$PROJECT_ROOT/packaging/linux/spider-tracker-server.desktop.in\" > \"$APPLICATIONS_DIR/spider-tracker-server.desktop\""
+        },
+        {
+          "line": 35,
+          "command": "chmod +x \"$APPLICATIONS_DIR/spider-tracker-server.desktop\""
+        },
+        {
+          "line": 37,
+          "command": "[[ \"$schedule_enabled\" == \"true\" ]]"
+        },
+        {
+          "line": 38,
+          "command": "sed \"s|__PROJECT_ROOT__|$PROJECT_ROOT|g\" \"$PROJECT_ROOT/packaging/linux/spider-tracker-weekly.service.in\" > \"$SYSTEMD_DIR/spider-tracker-weekly.service\""
+        },
+        {
+          "line": 41,
+          "command": "sed -e \"s|__DAY__|$calendar_day|g\" -e \"s|__TIME__|$schedule_time|g\" \"$PROJECT_ROOT/packaging/linux/spider-tracker-weekly.timer\" > \"$SYSTEMD_DIR/spider-tracker-weekly.timer\""
+        },
+        {
+          "line": 44,
+          "command": "systemctl --user daemon-reload"
+        },
+        {
+          "line": 45,
+          "command": "systemctl --user enable --now spider-tracker-weekly.timer"
+        },
+        {
+          "line": 47,
+          "command": "systemctl --user disable --now spider-tracker-weekly.timer 2> /dev/null"
+        },
+        {
+          "line": 47,
+          "command": "true"
+        },
+        {
+          "line": 48,
+          "command": "rm -f \"$SYSTEMD_DIR/spider-tracker-weekly.timer\" \"$SYSTEMD_DIR/spider-tracker-weekly.service\""
+        },
+        {
+          "line": 49,
+          "command": "systemctl --user daemon-reload"
+        },
+        {
+          "line": 52,
+          "command": "echo \"Lanzador gráfico instalado. Automatización semanal: $schedule_enabled.\""
+        }
+      ]
+    },
+    "install-macos.sh": {
+      "sha256": "75386e2b2037231a177b4f5b3d6a3aba81d401c2a7ec87ba4459351470f6d646",
+      "commands": [
+        {
+          "line": 2,
+          "command": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "command": "SCRIPT_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\""
+        },
+        {
+          "line": 4,
+          "command": "CDPATH= cd -- \"$(dirname -- \"$0\")\""
+        },
+        {
+          "line": 4,
+          "command": "dirname -- \"$0\""
+        },
+        {
+          "line": 4,
+          "command": "pwd"
+        },
+        {
+          "line": 5,
+          "command": "PROJECT_ROOT=\"$(dirname \"$SCRIPT_DIR\")\""
+        },
+        {
+          "line": 5,
+          "command": "dirname \"$SCRIPT_DIR\""
+        },
+        {
+          "line": 6,
+          "command": "LAUNCH_AGENTS=\"$HOME/Library/LaunchAgents\""
+        },
+        {
+          "line": 7,
+          "command": "APP_DIR=\"$HOME/Applications\""
+        },
+        {
+          "line": 8,
+          "command": "PLIST=\"$LAUNCH_AGENTS/com.spidertracker.weekly.plist\""
+        },
+        {
+          "line": 10,
+          "command": "command -v node > /dev/null 2>&1"
+        },
+        {
+          "line": 10,
+          "command": "echo \"Node.js 22 o superior es obligatorio.\" 1>&2"
+        },
+        {
+          "line": 10,
+          "command": "exit 1"
+        },
+        {
+          "line": 11,
+          "command": "chmod +x \"$PROJECT_ROOT/scripts/server-control-posix.sh\" \"$PROJECT_ROOT/scripts/build-macos-app.sh\""
+        },
+        {
+          "line": 12,
+          "command": "\"$PROJECT_ROOT/scripts/build-macos-app.sh\""
+        },
+        {
+          "line": 14,
+          "command": "mkdir -p \"$APP_DIR\" \"$LAUNCH_AGENTS\""
+        },
+        {
+          "line": 15,
+          "command": "rm -rf \"$APP_DIR/Spider Tracker Server.app\""
+        },
+        {
+          "line": 16,
+          "command": "cp -R \"$PROJECT_ROOT/dist/macos/Spider Tracker Server.app\" \"$APP_DIR/Spider Tracker Server.app\""
+        },
+        {
+          "line": 18,
+          "command": "schedule_day=\"WEDNESDAY\""
+        },
+        {
+          "line": 19,
+          "command": "schedule_hour=\"12\""
+        },
+        {
+          "line": 20,
+          "command": "schedule_minute=\"0\""
+        },
+        {
+          "line": 21,
+          "command": "schedule_enabled=\"true\""
+        },
+        {
+          "line": 22,
+          "command": "[[ -f \"$PROJECT_ROOT/.env\" ]]"
+        },
+        {
+          "line": 23,
+          "command": "schedule_enabled=\"$(sed -n 's/^SCHEDULE_ENABLED=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 23,
+          "command": "sed -n 's/^SCHEDULE_ENABLED=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 23,
+          "command": "tail -1"
+        },
+        {
+          "line": 23,
+          "command": "schedule_enabled=\"${schedule_enabled:-true}\""
+        },
+        {
+          "line": 24,
+          "command": "schedule_day=\"$(sed -n 's/^SCHEDULE_DAY=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 24,
+          "command": "sed -n 's/^SCHEDULE_DAY=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 24,
+          "command": "tail -1"
+        },
+        {
+          "line": 24,
+          "command": "schedule_day=\"${schedule_day:-WEDNESDAY}\""
+        },
+        {
+          "line": 25,
+          "command": "schedule_hour=\"$(sed -n 's/^SCHEDULE_HOUR=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 25,
+          "command": "sed -n 's/^SCHEDULE_HOUR=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 25,
+          "command": "tail -1"
+        },
+        {
+          "line": 25,
+          "command": "schedule_hour=\"${schedule_hour:-12}\""
+        },
+        {
+          "line": 26,
+          "command": "schedule_minute=\"$(sed -n 's/^SCHEDULE_MINUTE=//p' \"$PROJECT_ROOT/.env\" | tail -1)\""
+        },
+        {
+          "line": 26,
+          "command": "sed -n 's/^SCHEDULE_MINUTE=//p' \"$PROJECT_ROOT/.env\""
+        },
+        {
+          "line": 26,
+          "command": "tail -1"
+        },
+        {
+          "line": 26,
+          "command": "schedule_minute=\"${schedule_minute:-0}\""
+        },
+        {
+          "line": 28,
+          "command": "case \"$schedule_day\" in "
+        },
+        {
+          "line": 29,
+          "command": "weekday=\"4\""
+        },
+        {
+          "line": 29,
+          "command": "weekday=\"1\""
+        },
+        {
+          "line": 29,
+          "command": "weekday=\"2\""
+        },
+        {
+          "line": 29,
+          "command": "weekday=\"3\""
+        },
+        {
+          "line": 30,
+          "command": "weekday=\"5\""
+        },
+        {
+          "line": 30,
+          "command": "weekday=\"6\""
+        },
+        {
+          "line": 30,
+          "command": "weekday=\"7\""
+        },
+        {
+          "line": 31,
+          "command": "echo \"SCHEDULE_DAY no válido: $schedule_day\" 1>&2"
+        },
+        {
+          "line": 31,
+          "command": "exit 1"
+        },
+        {
+          "line": 34,
+          "command": "escaped_root=\"$(printf '%s' \"$PROJECT_ROOT\" | sed 's/[&|]/\\\\&/g')\""
+        },
+        {
+          "line": 34,
+          "command": "printf '%s' \"$PROJECT_ROOT\""
+        },
+        {
+          "line": 34,
+          "command": "sed 's/[&|]/\\\\&/g'"
+        },
+        {
+          "line": 35,
+          "command": "launchctl bootout \"gui/$(id -u)\" \"$PLIST\" 2> /dev/null"
+        },
+        {
+          "line": 35,
+          "command": "id -u"
+        },
+        {
+          "line": 35,
+          "command": "true"
+        },
+        {
+          "line": 36,
+          "command": "[[ \"$schedule_enabled\" == \"true\" ]]"
+        },
+        {
+          "line": 37,
+          "command": "sed -e \"s|__PROJECT_ROOT__|$escaped_root|g\" -e \"s|__WEEKDAY__|$weekday|g\" -e \"s|__HOUR__|$schedule_hour|g\" -e \"s|__MINUTE__|$schedule_minute|g\" \"$PROJECT_ROOT/packaging/macos/com.spidertracker.weekly.plist.in\" > \"$PLIST\""
+        },
+        {
+          "line": 39,
+          "command": "launchctl bootstrap \"gui/$(id -u)\" \"$PLIST\""
+        },
+        {
+          "line": 39,
+          "command": "id -u"
+        },
+        {
+          "line": 41,
+          "command": "rm -f \"$PLIST\""
+        },
+        {
+          "line": 44,
+          "command": "echo \"Aplicación instalada en ~/Applications. Automatización semanal: $schedule_enabled.\""
+        }
+      ]
+    },
+    "server-control-linux.sh": {
+      "sha256": "009f406d77d40318d9a982a4370c1814cda377d1e4849183433e8a582c6c0221",
+      "commands": [
+        {
+          "line": 2,
+          "command": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "command": "SCRIPT_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\""
+        },
+        {
+          "line": 4,
+          "command": "CDPATH= cd -- \"$(dirname -- \"$0\")\""
+        },
+        {
+          "line": 4,
+          "command": "dirname -- \"$0\""
+        },
+        {
+          "line": 4,
+          "command": "pwd"
+        },
+        {
+          "line": 5,
+          "command": "CONTROL=\"$SCRIPT_DIR/server-control-posix.sh\""
+        },
+        {
+          "line": 7,
+          "command": "command -v zenity > /dev/null 2>&1"
+        },
+        {
+          "line": 8,
+          "command": "echo \"Falta Zenity. Instalá 'zenity' con el gestor de paquetes de tu distribución.\" 1>&2"
+        },
+        {
+          "line": 9,
+          "command": "exit 1"
+        },
+        {
+          "line": 12,
+          "command": "true"
+        },
+        {
+          "line": 13,
+          "command": "status=\"$(\"$CONTROL\" status 2> /dev/null || true)\""
+        },
+        {
+          "line": 13,
+          "command": "\"$CONTROL\" status 2> /dev/null"
+        },
+        {
+          "line": 13,
+          "command": "true"
+        },
+        {
+          "line": 19,
+          "command": "action=\"$(zenity --list --title=\"Spider Tracker - Servidor\" --text=\"Estado: $status\" --column=\"Acción\" \"Encender\" \"Apagar\" \"Abrir aplicación\" \"Actualizar estado\" \"Cerrar\" --height=360 --width=460 2> /dev/null || true)\""
+        },
+        {
+          "line": 19,
+          "command": "zenity --list --title=\"Spider Tracker - Servidor\" --text=\"Estado: $status\" --column=\"Acción\" \"Encender\" \"Apagar\" \"Abrir aplicación\" \"Actualizar estado\" \"Cerrar\" --height=360 --width=460 2> /dev/null"
+        },
+        {
+          "line": 19,
+          "command": "true"
+        },
+        {
+          "line": 21,
+          "command": "case \"$action\" in "
+        },
+        {
+          "line": 22,
+          "command": "message=\"$(\"$CONTROL\" open 2>&1 || true)\""
+        },
+        {
+          "line": 22,
+          "command": "\"$CONTROL\" open 2>&1"
+        },
+        {
+          "line": 22,
+          "command": "zenity --info --text=\"$message\" --width=420"
+        },
+        {
+          "line": 22,
+          "command": "true"
+        },
+        {
+          "line": 23,
+          "command": "message=\"$(\"$CONTROL\" stop 2>&1 || true)\""
+        },
+        {
+          "line": 23,
+          "command": "\"$CONTROL\" stop 2>&1"
+        },
+        {
+          "line": 23,
+          "command": "zenity --info --text=\"$message\" --width=420"
+        },
+        {
+          "line": 23,
+          "command": "true"
+        },
+        {
+          "line": 24,
+          "command": "\"$CONTROL\" open"
+        },
+        {
+          "line": 27,
+          "command": "message=\"$(\"$CONTROL\" stop 2>&1)\""
+        },
+        {
+          "line": 27,
+          "command": "\"$CONTROL\" stop 2>&1"
+        },
+        {
+          "line": 27,
+          "command": "exit 0"
+        },
+        {
+          "line": 27,
+          "command": "message=\"$(\"$CONTROL\" stop 2>&1)\""
+        },
+        {
+          "line": 27,
+          "command": "\"$CONTROL\" stop 2>&1"
+        },
+        {
+          "line": 28,
+          "command": "zenity --error --text=\"$message\" --width=420"
+        }
+      ]
+    },
+    "server-control-posix.sh": {
+      "sha256": "457f3df5d3ff1e2c0997fd749f780bd1873850d90c3144b85967ae112ecb8443",
+      "commands": [
+        {
+          "line": 2,
+          "command": "set -euo pipefail"
+        },
+        {
+          "line": 4,
+          "command": "SCRIPT_DIR=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\""
+        },
+        {
+          "line": 4,
+          "command": "CDPATH= cd -- \"$(dirname -- \"$0\")\""
+        },
+        {
+          "line": 4,
+          "command": "dirname -- \"$0\""
+        },
+        {
+          "line": 4,
+          "command": "pwd"
+        },
+        {
+          "line": 5,
+          "command": "PROJECT_ROOT=\"$(dirname \"$SCRIPT_DIR\")\""
+        },
+        {
+          "line": 5,
+          "command": "dirname \"$SCRIPT_DIR\""
+        },
+        {
+          "line": 6,
+          "command": "DATA_DIR=\"$PROJECT_ROOT/data\""
+        },
+        {
+          "line": 7,
+          "command": "PID_FILE=\"$DATA_DIR/server.pid\""
+        },
+        {
+          "line": 8,
+          "command": "URL=\"http://localhost:8787\""
+        },
+        {
+          "line": 11,
+          "command": "[[ -f \"$PID_FILE\" ]]"
+        },
+        {
+          "line": 12,
+          "command": "local pid"
+        },
+        {
+          "line": 13,
+          "command": "pid=\"$(tr -d '[:space:]' < \"$PID_FILE\")\""
+        },
+        {
+          "line": 13,
+          "command": "tr -d '[:space:]' < \"$PID_FILE\""
+        },
+        {
+          "line": 14,
+          "command": "[[ \"$pid\" =~ ^[0-9]+$ ]]"
+        },
+        {
+          "line": 14,
+          "command": "kill -0 \"$pid\" 2> /dev/null"
+        },
+        {
+          "line": 15,
+          "command": "printf '%s' \"$pid\""
+        },
+        {
+          "line": 16,
+          "command": "return 0"
+        },
+        {
+          "line": 19,
+          "command": "return 1"
+        },
+        {
+          "line": 23,
+          "command": "local pid"
+        },
+        {
+          "line": 24,
+          "command": "pid=\"$(server_pid)\""
+        },
+        {
+          "line": 24,
+          "command": "server_pid"
+        },
+        {
+          "line": 25,
+          "command": "echo \"El servidor ya está encendido (PID $pid).\""
+        },
+        {
+          "line": 26,
+          "command": "return 0"
+        },
+        {
+          "line": 29,
+          "command": "mkdir -p \"$DATA_DIR\""
+        },
+        {
+          "line": 31,
+          "command": "cd \"$PROJECT_ROOT\""
+        },
+        {
+          "line": 32,
+          "command": "nohup node src/server.js < /dev/null > \"$DATA_DIR/server.log\" 2> \"$DATA_DIR/server-error.log\""
+        },
+        {
+          "line": 33,
+          "command": "echo $! > \"$PID_FILE\""
+        },
+        {
+          "line": 35,
+          "command": "sleep 1"
+        },
+        {
+          "line": 36,
+          "command": "pid=\"$(server_pid)\""
+        },
+        {
+          "line": 36,
+          "command": "server_pid"
+        },
+        {
+          "line": 37,
+          "command": "echo \"Servidor encendido (PID $pid).\""
+        },
+        {
+          "line": 39,
+          "command": "echo \"El servidor no pudo iniciar. Revisá data/server-error.log.\" 1>&2"
+        },
+        {
+          "line": 40,
+          "command": "return 1"
+        },
+        {
+          "line": 45,
+          "command": "local attempt"
+        },
+        {
+          "line": 46,
+          "command": "((attempt = 0))"
+        },
+        {
+          "line": 46,
+          "command": "((attempt < 40))"
+        },
+        {
+          "line": 46,
+          "command": "((attempt += 1))"
+        },
+        {
+          "line": 47,
+          "command": ": > /dev/tcp/127.0.0.1/8787"
+        },
+        {
+          "line": 48,
+          "command": "return 0"
+        },
+        {
+          "line": 50,
+          "command": "sleep 0.25"
+        },
+        {
+          "line": 52,
+          "command": "echo \"El servidor se inició, pero la aplicación no respondió a tiempo en $URL.\" 1>&2"
+        },
+        {
+          "line": 53,
+          "command": "return 1"
+        },
+        {
+          "line": 57,
+          "command": "local pid"
+        },
+        {
+          "line": 58,
+          "command": "pid=\"$(server_pid)\""
+        },
+        {
+          "line": 58,
+          "command": "server_pid"
+        },
+        {
+          "line": 59,
+          "command": "kill \"$pid\""
+        },
+        {
+          "line": 60,
+          "command": "local attempt"
+        },
+        {
+          "line": 61,
+          "command": "((attempt = 0))"
+        },
+        {
+          "line": 61,
+          "command": "((attempt < 60))"
+        },
+        {
+          "line": 61,
+          "command": "((attempt += 1))"
+        },
+        {
+          "line": 62,
+          "command": "kill -0 \"$pid\" 2> /dev/null"
+        },
+        {
+          "line": 62,
+          "command": "break"
+        },
+        {
+          "line": 63,
+          "command": "sleep 0.1"
+        },
+        {
+          "line": 65,
+          "command": "kill -0 \"$pid\" 2> /dev/null"
+        },
+        {
+          "line": 66,
+          "command": "echo \"El servidor no termino; el panel debe permanecer abierto.\" 1>&2"
+        },
+        {
+          "line": 67,
+          "command": "return 1"
+        },
+        {
+          "line": 69,
+          "command": "rm -f \"$PID_FILE\""
+        },
+        {
+          "line": 70,
+          "command": "echo \"Servidor apagado.\""
+        },
+        {
+          "line": 72,
+          "command": "rm -f \"$PID_FILE\""
+        },
+        {
+          "line": 73,
+          "command": "echo \"El servidor ya está apagado.\""
+        },
+        {
+          "line": 78,
+          "command": "local pid"
+        },
+        {
+          "line": 79,
+          "command": "pid=\"$(server_pid)\""
+        },
+        {
+          "line": 79,
+          "command": "server_pid"
+        },
+        {
+          "line": 80,
+          "command": "echo \"ENCENDIDO (PID $pid) - $URL\""
+        },
+        {
+          "line": 82,
+          "command": "echo \"APAGADO\""
+        },
+        {
+          "line": 83,
+          "command": "return 1"
+        },
+        {
+          "line": 88,
+          "command": "start_server"
+        },
+        {
+          "line": 89,
+          "command": "wait_for_server"
+        },
+        {
+          "line": 90,
+          "command": "command -v xdg-open > /dev/null 2>&1"
+        },
+        {
+          "line": 91,
+          "command": "xdg-open \"$URL\" > /dev/null 2>&1"
+        },
+        {
+          "line": 92,
+          "command": "command -v open > /dev/null 2>&1"
+        },
+        {
+          "line": 93,
+          "command": "open \"$URL\""
+        },
+        {
+          "line": 95,
+          "command": "echo \"$URL\""
+        },
+        {
+          "line": 99,
+          "command": "case \"${1:-status}\" in "
+        },
+        {
+          "line": 100,
+          "command": "start_server"
+        },
+        {
+          "line": 101,
+          "command": "stop_server"
+        },
+        {
+          "line": 102,
+          "command": "status_server"
+        },
+        {
+          "line": 103,
+          "command": "open_application"
+        },
+        {
+          "line": 104,
+          "command": "echo \"Uso: $0 {start|stop|status|open}\" 1>&2"
+        },
+        {
+          "line": 104,
+          "command": "exit 2"
+        }
+      ]
+    }
+  }
+}

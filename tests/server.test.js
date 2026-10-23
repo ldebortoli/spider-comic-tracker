@@ -254,16 +254,24 @@ test("shutdown reports a server that was never listening", async () => {
   await assert.rejects(server.shutdown(), { code: "ERR_SERVER_NOT_RUNNING" });
 });
 
-test("failed bot shutdown keeps server available for retry", async () => {
+test("failed bot shutdown keeps server and its retry scheduler available", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
   let fail = true;
   let closed = 0;
-  const server = createTrackerServer({ config: {}, service: {}, db: { close: () => { closed++; } },
+  let ticks = 0;
+  const service = { schedulerHandle: setInterval(() => { ticks++; }, 1000) };
+  const server = createTrackerServer({ config: {}, service, db: { close: () => { closed++; } },
     telegram: { stop: async () => { if (fail) throw new Error("synthetic stop failure"); } } });
+  t.after(async () => { fail = false; await server.shutdown(); });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   await assert.rejects(server.shutdown(), /synthetic stop failure/);
   assert.equal(server.listening, true);
+  t.mock.timers.tick(1000);
+  assert.equal(ticks, 1, "the next scheduled check must still run after stop failure");
   fail = false;
   await server.shutdown();
   assert.equal(server.listening, false);
   assert.equal(closed, 1);
+  t.mock.timers.tick(1000);
+  assert.equal(ticks, 1, "successful stop clears its scheduler");
 });

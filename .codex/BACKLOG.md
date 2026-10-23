@@ -1,11 +1,10 @@
 # TODO
 
-- [BLOCKED 2026-10-23] Gate de cobertura mas amplio: 100% medido en nucleo HTTP y Python; falta medicion del codigo mantenido de UI/bridge JS y C#/PowerShell. MERGE/push pendientes del gate o excepcion autorizada.
 - [BLOCKED 2026-10-23] Adopcion Linux timer: host desconocido; no desplegar. Cierre nativo Linux/macOS y compilacion AppleScript requieren esos entornos.
 
 # IN PROGRESS
 
-- [2026-10-23] Apagado semanal 0.1.2 [BLOCKED: publicacion/merge requieren resolver el gate global heredado de cobertura 100% de UI/bridge JS y C#/PowerShell; no hay excepcion autorizada]. Implementacion local lista: confirmacion Telegram al final de todo el flujo, recibo SQLite y apagado de servidor/bot 24 h despues, con espera de operaciones. Validacion: suite completa, gates shutdown/HTTP/Python 100% y cierre Windows sintetico; commit local, sin push. No falta configurar una tarea externa: el temporizador interno se usa en el proximo arranque semanal.
+- [2026-10-23] Publicar los cambios 0.1.1/0.1.2 y resolver cobertura global en 0.1.3: IN PROGRESS. Los 23 JS, Python, C#, diez PowerShell y cinco Bash tienen 100% de todas sus metricas instrumentables; CMD/AppleScript tienen contratos separados y limites exactos en D-015. Falta concluir checkout limpio y push. La primera pasada limpia detecto autoload de Get-FileHash en el harness; reemplazado por SHA256 de .NET, sin cambios a produccion ni umbrales. No queda un bloqueo de cobertura sin medir en UI/bridge/controles.
 
 # DONE
 

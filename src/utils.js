@@ -124,7 +124,7 @@ function getTimeZoneParts(date, timeZone) {
     hour: Number(get("hour")),
     minute: Number(get("minute")),
     second: Number(get("second")),
-    weekday: String(get("weekday") || "").toUpperCase()
+    weekday: get("weekday").toUpperCase()
   };
 }
 
@@ -140,7 +140,7 @@ function getIsoWeekInfo(date, timeZone) {
   return {
     isoYear,
     weekNumber,
-    weekdayIndex: WEEKDAY_TO_INDEX[parts.weekday.toLowerCase()] || 0,
+    weekdayIndex: WEEKDAY_TO_INDEX[parts.weekday.toLowerCase()],
     localDayName: parts.weekday,
     localHour: parts.hour,
     localMinute: parts.minute

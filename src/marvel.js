@@ -134,7 +134,7 @@ async function fetchResponseWithRetry(url, {
     }
   }
 
-  throw lastError || new Error(`${label} no respondió para ${url}`);
+  throw lastError;
 }
 
 async function fetchJson(url, options = {}) {
@@ -174,7 +174,7 @@ async function fetchRenderedPageHtml({
 }
 
 function normalizeHeading(line) {
-  return normalizeText(String(line || "").replace(/:$/, ""));
+  return normalizeText(line.replace(/:$/, ""));
 }
 
 function htmlToLines(html) {
@@ -212,10 +212,6 @@ function readValueAfterLabel(lines, label) {
   }
 
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-    if (!lines[cursor]) {
-      continue;
-    }
-
     if (isBoundaryLine(lines[cursor])) {
       break;
     }
@@ -237,10 +233,6 @@ function collectSection(lines, label) {
 
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
     const line = lines[cursor];
-
-    if (!line) {
-      continue;
-    }
 
     if (isBoundaryLine(line)) {
       break;
@@ -312,10 +304,6 @@ function extractSynopsis(lines) {
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
     const line = lines[cursor];
 
-    if (!line) {
-      continue;
-    }
-
     if (isBoundaryLine(line)) {
       break;
     }
@@ -338,10 +326,6 @@ function extractSectionText(lines, label) {
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
     const line = lines[cursor];
 
-    if (!line) {
-      continue;
-    }
-
     if (isBoundaryLine(line) || normalizeHeading(line) === "categories" || normalizeHeading(line) === "languages") {
       break;
     }
@@ -360,10 +344,6 @@ function extractCoverImageUrl(html) {
 }
 
 function looksLikeTitle(line) {
-  if (!line) {
-    return false;
-  }
-
   if (/^(part of|lgy:|previous issue|next issue|this comic will be released|art by:)/i.test(line)) {
     return false;
   }
@@ -390,13 +370,13 @@ function toInteger(value) {
 }
 
 function parseIssueNumber(issueLabel, title) {
-  const issueMatch = String(issueLabel || "").match(/^#?(\d+)/);
+  const issueMatch = issueLabel.match(/^#?(\d+)/);
 
   if (issueMatch) {
     return Number(issueMatch[1]);
   }
 
-  const titleMatch = String(title || "").match(/#(\d+)/);
+  const titleMatch = title.match(/#(\d+)/);
 
   if (titleMatch) {
     return Number(titleMatch[1]);

@@ -527,8 +527,8 @@ let shutdownPromise;
 server.shutdown = () => {
   if (!shutdownPromise) {
     shutdownPromise = (async () => {
-      clearInterval(service.schedulerHandle);
       await telegram.stop();
+      clearInterval(service.schedulerHandle);
       await new Promise((resolve, reject) => {
         const deadline = setTimeout(() => server.closeAllConnections(), 2_000);
         server.close((error) => {

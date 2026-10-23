@@ -318,7 +318,7 @@ function parseFlexibleDate(value) {
 
 function readWikiField(wikitext, fieldName) {
   const escaped = String(fieldName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = String(wikitext || "").match(new RegExp(`^\\s*\\|\\s*${escaped}\\s*=\\s*(.*?)\\s*$`, "mi"));
+  const match = String(wikitext || "").match(new RegExp(`^[ \\t]*\\|[ \\t]*${escaped}[ \\t]*=[ \\t]*(.*?)[ \\t]*$`, "mi"));
   return cleanWikiCreator(match?.[1] || "");
 }
 
@@ -379,7 +379,7 @@ function sectionLabelFromWikiLine(line) {
 }
 
 function cleanWikiCharacterItem(value) {
-  const text = String(value || "")
+  const text = value
     .replace(/<!--[^]*?-->/g, " ")
     .replace(/<ref\b[^>]*>[^]*?<\/ref>/gi, " ")
     .replace(/<ref\b[^/]*\/>/gi, " ");
@@ -457,7 +457,7 @@ function extractCharacterSection(wikitext, label) {
 
 function extractWriters(wikitext) {
   const writers = [];
-  const pattern = /^\s*\|\s*Writer(?:\d+)?(?:_\d+)?\s*=\s*(.*?)\s*$/gmi;
+  const pattern = /^[ \t]*\|[ \t]*Writer(?:\d+)?(?:_\d+)?[ \t]*=[ \t]*(.*?)[ \t]*$/gmi;
 
   for (const match of String(wikitext || "").matchAll(pattern)) {
     const writer = cleanWikiCreator(match[1]);
@@ -471,7 +471,7 @@ function extractWriters(wikitext) {
 }
 
 function extractCoverFileName(wikitext) {
-  const match = String(wikitext || "").match(/^\s*\|\s*Image(?:1)?\s*=\s*(.*?)\s*$/mi);
+  const match = String(wikitext || "").match(/^[ \t]*\|[ \t]*Image(?:1)?[ \t]*=[ \t]*(.*?)[ \t]*$/mi);
   if (!match) {
     return "";
   }
@@ -814,7 +814,7 @@ async function importCharacterCatalogs({
       try {
         const result = await fetchCatalogBatch({ baseUrl, members: batches[batchIndex] });
         for (const comic of result.comics) {
-          appearanceDetailsByPage.set(comic.fandomPageId, comic.appearanceDetails || {});
+          appearanceDetailsByPage.set(comic.fandomPageId, comic.appearanceDetails);
         }
         await onItems?.(result.comics);
         importProgress.processedPages += result.processed;

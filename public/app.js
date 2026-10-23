@@ -1551,10 +1551,7 @@ async function loadQuarterlyRefreshSettings() {
 
 function askConfirmation({ title, message }) {
   return new Promise((resolve) => {
-    let settled = false;
     const cleanup = (answer) => {
-      if (settled) return;
-      settled = true;
       elements.confirmYes.removeEventListener("click", onYes);
       elements.confirmNo.removeEventListener("click", onNo);
       elements.confirmClose.removeEventListener("click", onNo);
