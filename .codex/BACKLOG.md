@@ -1,4 +1,4 @@
-# TODO
+﻿# TODO
 
 No hay tareas pendientes.
 
@@ -7,6 +7,9 @@ No hay tareas pendientes.
 No hay tareas en curso.
 
 # DONE
+
+- [2026-10-22] Incorporar la politica CI de USER_QUEUE a D-012: validacion local, push cuando corresponda, ninguna consulta de CI remota salvo pedido actual.
+- [2026-10-22] Reconciliar privacidad GitHub con DONE del 2026-08-20 sin repetir ajustes. Consulta solo lectura: PUBLIC, Secret Scanning/Push Protection enabled; correo Git local noreply. Sin cambios de identidad, remotos, cuentas o protecciones. Los cuatro pedidos historicos de enemigos siguen DONE.
 
 - [2026-08-20] Habilitar Secret Scanning y Push Protection en `ldebortoli/spider-comic-tracker` e integrar la auditoria de publicacion en `main`; la configuracion global de la cuenta no fue modificada.
 - [2026-08-20] Verificar que el repositorio ya es publico y auditar los 32 commits y los 72 archivos de `HEAD`: sin secretos ni archivos sensibles versionados; `.env` y `data/` permanecen locales e ignorados. Retirar del contexto actual la ruta absoluta con el usuario de Windows.

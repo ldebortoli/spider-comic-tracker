@@ -78,3 +78,9 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - Fecha: 2026-08-20.
 - Decision: mantener habilitados Secret Scanning y Push Protection en `ldebortoli/spider-comic-tracker`; la preferencia global de Push Protection del usuario no se modifica desde este proyecto.
 - Motivo: detectar credenciales conocidas ya publicadas y bloquear futuros pushes que contengan secretos, sin ampliar cambios a otros repositorios.
+
+## D-012 - Validacion local y CI remota solo a pedido
+
+- Estado: vigente. Fecha: 2026-10-22.
+- Decision: validar localmente y hacer push cuando corresponda. No esperar, mirar, sondear ni monitorear GitHub Actions u otra CI remota despues del push salvo pedido explicito en la solicitud actual. Un resultado ya disponible puede informarse sin esperarlo.
+- Motivo: pedido autentico de USER_QUEUE; sin cambios a workflows, cuentas ni protecciones.
