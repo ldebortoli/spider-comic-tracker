@@ -1,4 +1,18 @@
-﻿# Session handoff
+﻿# Entrega 2026-10-23 UTC - candidato 0.1.1
+
+- Host DESKTOP-IH4I3NF, base d5c12682c7fb, rama security/local-http-0.1.1; unico writer.
+- WIP USER_QUEUE recibido +3/-1 preservado exactamente; backup ignorado data/security-review/baseline-20261023 y hashes en SECURITY_REVIEW_20261023.md. Cola reconciliada en 0d5d112; ambos pedidos DONE. No reimplementar enemigos historicos.
+- Candidato implementa Host/Origin/Fetch Metadata/token local efimero, cuerpos streaming 64 KiB, URL/errores seguros, UI/CSV y puente Node/Python, cierre de arboles y paneles.
+- npm test: 39 comprobaciones previas +14 tests Node +8 Python pasan; gates HTTP y Python 100%; panel candidato compilado y FormClosing sintetico verifica raiz/hijo/nieto. Logs y diff en data/security-review; informe versionado SECURITY_REVIEW_20261023.md.
+- BLOCKED merge/push: no se demuestra 100% del codigo mantenido de UI/bridge JS/C#/PowerShell; ver gate de skills locales y TODO. No rebajar ni anunciar cobertura global. Fuentes POSIX pasan Bash syntax y grupos simulados; validacion Linux/macOS nativa y timer Linux pendientes de host/entorno. Sin instalacion habitual, despliegue o consultas CI.
+- Incidente: primera prueba importo baseline con arranque automatico, leyo config habitual y abrio DB real. Interrupcion inmediata; WAL tuvo escritura 01:50:17 UTC, PID bot 01:50:18 UTC. Comprobacion elevada posterior sin listener 8787/bot/prueba activa. No se leyeron/revirtieron registros y no se puede certificar ausencia de sync/backfill/intentos de notificacion. Ya corregido import sin efectos; pruebas posteriores sinteticas. No ocultar ni afirmar aislamiento completo de toda la sesion.
+- GitHub solo lectura: PUBLIC y protecciones de secretos enabled; noreply local ya vigente, ningun ajuste repetido. origin/main continuaba d5c12682c7fb al revalidar.
+- Escalaciones aprobadas para Git/memoria/red/loopback; ninguna denegacion auto-review. Intento de punto de control al hilo coordinador no entregado: thread not found.
+- Proximo paso: resolver gate amplio/adopcion con evidencia o excepcion autorizada, preservar DB/config reales y no diagnosticar contenido real sin ampliar alcance. Integrar sin reescribir historial y push solo cuando corresponda; no monitorear CI.
+
+## Handoff historico conservado
+
+# Session handoff
 
 ## Objetivo general
 

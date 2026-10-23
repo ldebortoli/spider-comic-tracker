@@ -211,21 +211,21 @@ const elements = {
   spanishSelectedIssues: document.querySelector("#spanish-selected-issues")
 };
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: {
-      "Content-Type": "application/json"
-    },
-    ...options
-  });
+const api = window.spiderLocalApi.api;
 
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw new Error(payload.error || "Error de API");
+async function exportCatalogCsv() {
+  try {
+    const response = await window.spiderLocalApi.request("/api/catalog/export.csv");
+    if (!response.ok) throw new Error("No se pudo exportar el catalogo.");
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "spider-man-earth-616.csv";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (error) {
+    setSyncStatus(error.message);
   }
-
-  return payload;
 }
 
 function debounce(fn, wait = 250) {
@@ -257,6 +257,15 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function escapeUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) ? escapeHtml(url.href) : "";
+  } catch {
+    return "";
+  }
 }
 
 function createLazyEnemyPicker({ root, input, allLabel, fetchPage }) {
@@ -902,7 +911,7 @@ function renderCatalog() {
       return `<span class="tag tag-character">${escapeHtml(character.displayName)}${characterDetail ? ` · ${escapeHtml(characterDetail)}` : ""}</span>`;
     }).join("");
     const image = issue.coverImageUrl
-      ? `<img src="${escapeHtml(issue.coverImageUrl)}" alt="" loading="lazy" />`
+      ? `<img src="${escapeUrl(issue.coverImageUrl)}" alt="" loading="lazy" />`
       : `<div class="catalog-cover-placeholder">Sin tapa</div>`;
 
     return `
@@ -910,7 +919,7 @@ function renderCatalog() {
         <div class="catalog-cover">${image}</div>
         <div class="catalog-copy">
           <div class="catalog-title-line">
-            <a href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(issue.title)}</a>
+            <a href="${escapeUrl(issue.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(issue.title)}</a>
             <span class="tag">${escapeHtml(appearance)}</span>
           </div>
           <p>${escapeHtml(formatDate(issue.releaseDate, issue.datePrecision, issue.dateSource))} · ${escapeHtml(writers)}</p>
@@ -1043,7 +1052,7 @@ function renderSpanishEditions() {
 
   elements.spanishEditionsList.innerHTML = items.map((edition) => {
     const cover = edition.coverImageUrl
-      ? `<img src="${escapeHtml(edition.coverImageUrl)}" alt="Portada de ${escapeHtml(edition.title)}" loading="lazy" />`
+      ? `<img src="${escapeUrl(edition.coverImageUrl)}" alt="Portada de ${escapeHtml(edition.title)}" loading="lazy" />`
       : `<div class="spanish-cover-placeholder">Sin portada</div>`;
     const details = [edition.publisher, edition.collectionName, edition.volumeLabel, edition.formatLabel, edition.pages ? `${edition.pages} páginas` : ""].filter(Boolean).join(" · ");
     const shownIssues = edition.issues.slice(0, 8);
@@ -1071,11 +1080,11 @@ function renderSpanishEditions() {
               <div class="tags">${edition.characters.map((character) => `<span class="tag">${escapeHtml(character)}</span>`).join("")}</div>
               <div class="spanish-linked-issues">
                 <strong>${edition.issueCount} issue(s) USA relacionados</strong>
-                ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a class="${issue.isPreferredSpanishEdition ? "is-preferred" : "is-alternative"}" href="${escapeHtml(issue.fandomUrl)}" target="_blank" rel="noreferrer" title="${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? "Edición prioritaria por cantidad de páginas" : "También incluido en una edición prioritaria más extensa") : ""}">${escapeHtml(issue.title)}${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? " ★" : " · alternativa") : ""}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
+                ${shownIssues.length ? `<div>${shownIssues.map((issue) => `<a class="${issue.isPreferredSpanishEdition ? "is-preferred" : "is-alternative"}" href="${escapeUrl(issue.fandomUrl)}" target="_blank" rel="noreferrer" title="${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? "Edición prioritaria por cantidad de páginas" : "También incluido en una edición prioritaria más extensa") : ""}">${escapeHtml(issue.title)}${issue.spanishEditionCount > 1 ? (issue.isPreferredSpanishEdition ? " ★" : " · alternativa") : ""}</a>`).join("")}${remainingIssues ? `<span class="muted">+${remainingIssues} más</span>` : ""}</div>` : `<span class="muted">Todavía no se relacionaron issues individuales.</span>`}
               </div>
               ${edition.containsRaw ? `<p class="muted"><strong>Contiene:</strong> ${escapeHtml(edition.containsRaw)}</p>` : ""}
               ${edition.notes ? `<p>${escapeHtml(edition.notes)}</p>` : ""}
-              ${edition.referenceUrl ? `<a href="${escapeHtml(edition.referenceUrl)}" target="_blank" rel="noreferrer">Abrir referencia</a>` : ""}
+              ${edition.referenceUrl ? `<a href="${escapeUrl(edition.referenceUrl)}" target="_blank" rel="noreferrer">Abrir referencia</a>` : ""}
             </div>
           </details>
         </div>
@@ -1279,23 +1288,23 @@ function renderComicGroups(container, comics) {
       <div class="volume-group__header">
         <div>
           <p class="eyebrow">Volumen</p>
-          <h3>${group.volumeName}</h3>
+          <h3>${escapeHtml(group.volumeName)}</h3>
         </div>
         <div class="volume-group__meta">
           <span class="muted">${group.comics.length} cómic(s)</span>
-          <a class="button button-secondary" href="${group.volumeFandomUrl}" target="_blank" rel="noreferrer">Abrir volumen</a>
+          <a class="button button-secondary" href="${escapeUrl(group.volumeFandomUrl)}" target="_blank" rel="noreferrer">Abrir volumen</a>
         </div>
       </div>
       <div class="volume-group__grid">
         ${group.comics.map((comic) => `
-          <article class="comic-card" data-comic-id="${comic.id}">
-            <img src="${comic.coverImageUrl || ""}" alt="Tapa de ${comic.title}" loading="lazy" />
+          <article class="comic-card" data-comic-id="${escapeHtml(comic.id)}">
+            <img src="${escapeUrl(comic.coverImageUrl)}" alt="Tapa de ${escapeHtml(comic.title)}" loading="lazy" />
             <div>
-              <p>${formatDate(comic.releaseDate)}${comic.issueLabel ? ` - ${comic.issueLabel}` : ""}</p>
-              <h3>${comic.title}</h3>
+              <p>${formatDate(comic.releaseDate)}${comic.issueLabel ? ` - ${escapeHtml(comic.issueLabel)}` : ""}</p>
+              <h3>${escapeHtml(comic.title)}</h3>
             </div>
             <div class="tags">
-              ${(comic.matchSummary || comic.matchedCharacters || []).slice(0, 4).map((character) => `<span class="tag">${character}</span>`).join("")}
+              ${(comic.matchSummary || comic.matchedCharacters || []).slice(0, 4).map((character) => `<span class="tag">${escapeHtml(character)}</span>`).join("")}
             </div>
           </article>
         `).join("")}
@@ -1385,13 +1394,13 @@ function renderPending() {
   elements.pendingList.innerHTML = pending.map((item) => {
     const matches = (item.matchSummary || []).join(", ") || "Sin match fuerte";
     const cover = item.coverImageUrl
-      ? `<img src="${escapeHtml(item.coverImageUrl)}" alt="" loading="lazy" />`
+      ? `<img src="${escapeUrl(item.coverImageUrl)}" alt="" loading="lazy" />`
       : `<div class="pending-cover-placeholder">Sin tapa</div>`;
     return `
       <li class="pending-item" data-review-id="${item.id}">
         <div class="pending-cover">${cover}</div>
         <div class="pending-copy">
-          <strong><a href="${escapeHtml(item.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a></strong>
+          <strong><a href="${escapeUrl(item.fandomUrl)}" target="_blank" rel="noreferrer">${escapeHtml(item.title)}</a></strong>
           <span class="muted">${escapeHtml(item.volumeName || "Volumen sin detectar")}${item.issueLabel ? ` - ${escapeHtml(item.issueLabel)}` : ""}</span>
           <span class="muted">${escapeHtml(formatDate(item.releaseDate))}</span>
           <span class="pending-matches"><strong>Personajes detectados:</strong> ${escapeHtml(matches)}</span>
@@ -1603,7 +1612,7 @@ async function confirmCsvExport(event) {
   });
 
   if (confirmed) {
-    window.location.assign(elements.exportCsvButton.href);
+    await exportCatalogCsv();
   }
 }
 
@@ -1836,8 +1845,8 @@ function openModal(comic) {
   elements.modalTitle.textContent = comic.title;
   elements.modalDate.textContent = `${formatDate(comic.releaseDate)}${comic.issueLabel ? ` - ${comic.issueLabel}` : ""}`;
   elements.modalCharacters.textContent = `Volumen: ${comic.volumeName || "Sin detectar"} | Personajes: ${(comic.matchSummary || comic.matchedCharacters || []).join(", ") || "Sin personajes destacados"}`;
-  elements.modalLink.href = comic.fandomUrl;
-  elements.modalCover.src = comic.coverImageUrl || "";
+  elements.modalLink.href = escapeUrl(comic.fandomUrl) ? comic.fandomUrl : "about:blank";
+  elements.modalCover.src = escapeUrl(comic.coverImageUrl) ? comic.coverImageUrl : "";
   elements.modalCover.alt = `Tapa de ${comic.title}`;
   openDialog(elements.modal);
 }

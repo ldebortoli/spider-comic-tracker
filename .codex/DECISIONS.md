@@ -81,6 +81,12 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 
 ## D-012 - Validacion local y CI remota solo a pedido
 
-- Estado: vigente. Fecha: 2026-10-22.
+- Estado: vigente. Fecha: 2026-10-23.
 - Decision: validar localmente y hacer push cuando corresponda. No esperar, mirar, sondear ni monitorear GitHub Actions u otra CI remota despues del push salvo pedido explicito en la solicitud actual. Un resultado ya disponible puede informarse sin esperarlo.
 - Motivo: pedido autentico de USER_QUEUE; sin cambios a workflows, cuentas ni protecciones.
+
+## D-013 - Sesion HTTP local por proceso (candidato 0.1.1)
+
+- Fecha: 2026-10-23. Estado: implementado en candidato; adopcion pendiente del gate registrado.
+- Decision: loopback IPv4, Host/Origin exactos y Fetch Metadata; token aleatorio por proceso en header para API, bootstrap del mismo origen para UI y entorno del hijo para bridge. Cuerpo JSON streaming de 64 KiB y errores inesperados genericos. Sin cambios de cuentas, credenciales Telegram o esquema DB.
+- Motivo: endurecer control HTTP local conservando integraciones. No es aislamiento de procesos hostiles del mismo usuario. Importar server.js no arranca servicios; pruebas siempre con dependencias/cwd sinteticos.

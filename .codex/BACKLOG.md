@@ -1,6 +1,7 @@
 ﻿# TODO
 
-No hay tareas pendientes.
+- [BLOCKED 2026-10-23] Gate de cobertura mas amplio: 100% medido en nucleo HTTP y Python; falta medicion del codigo mantenido de UI/bridge JS y C#/PowerShell. MERGE/push pendientes del gate o excepcion autorizada.
+- [BLOCKED 2026-10-23] Adopcion Linux timer: host desconocido; no desplegar. Cierre nativo Linux/macOS y compilacion AppleScript requieren esos entornos.
 
 # IN PROGRESS
 
@@ -8,8 +9,10 @@ No hay tareas en curso.
 
 # DONE
 
-- [2026-10-22] Incorporar la politica CI de USER_QUEUE a D-012: validacion local, push cuando corresponda, ninguna consulta de CI remota salvo pedido actual.
-- [2026-10-22] Reconciliar privacidad GitHub con DONE del 2026-08-20 sin repetir ajustes. Consulta solo lectura: PUBLIC, Secret Scanning/Push Protection enabled; correo Git local noreply. Sin cambios de identidad, remotos, cuentas o protecciones. Los cuatro pedidos historicos de enemigos siguen DONE.
+- [2026-10-23] Implementar candidato HTTP local 0.1.1 con Host/Origin/token, limite streaming, errores/URL seguros, UI/CSV y bridge adaptados, cierre de arbol Windows y fuentes POSIX. Suite local y gates HTTP/Python pasan; limites e incidente inicial registrados en SECURITY_REVIEW_20261023.md. Integracion/publicacion pendientes del gate amplio indicado en TODO.
+
+- [2026-10-23] Incorporar la politica CI de USER_QUEUE a D-012: validacion local, push cuando corresponda, ninguna consulta de CI remota salvo pedido actual.
+- [2026-10-23] Reconciliar privacidad GitHub con DONE del 2026-08-20 sin repetir ajustes. Consulta solo lectura: PUBLIC, Secret Scanning/Push Protection enabled; correo Git local noreply. Sin cambios de identidad, remotos, cuentas o protecciones. Los cuatro pedidos historicos de enemigos siguen DONE.
 
 - [2026-08-20] Habilitar Secret Scanning y Push Protection en `ldebortoli/spider-comic-tracker` e integrar la auditoria de publicacion en `main`; la configuracion global de la cuenta no fue modificada.
 - [2026-08-20] Verificar que el repositorio ya es publico y auditar los 32 commits y los 72 archivos de `HEAD`: sin secretos ni archivos sensibles versionados; `.env` y `data/` permanecen locales e ignorados. Retirar del contexto actual la ruta absoluta con el usuario de Windows.

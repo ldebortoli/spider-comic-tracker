@@ -10,7 +10,14 @@ on run
     end try
 
     set selectedAction to choose from list {"Encender", "Apagar", "Abrir aplicación", "Actualizar estado", "Cerrar"} with title "Spider Tracker - Servidor" with prompt "Estado: " & serverStatus default items {"Abrir aplicación"}
-    if selectedAction is false or item 1 of selectedAction is "Cerrar" then exit repeat
+    if selectedAction is false or item 1 of selectedAction is "Cerrar" then
+      try
+        do shell script controlScript & " stop"
+        exit repeat
+      on error errorMessage
+        display dialog errorMessage buttons {"OK"} default button "OK"
+      end try
+    else
 
     set actionName to item 1 of selectedAction
     if actionName is "Encender" then
@@ -19,6 +26,7 @@ on run
       display dialog (do shell script controlScript & " stop") buttons {"OK"} default button "OK"
     else if actionName is "Abrir aplicación" then
       do shell script controlScript & " open"
+    end if
     end if
   end repeat
 end run

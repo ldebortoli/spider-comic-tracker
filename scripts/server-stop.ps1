@@ -11,11 +11,11 @@ function Stop-TelegramBotProcess {
     if ($botPid -match "^\d+$") {
       $botProcess = Get-Process -Id ([int] $botPid) -ErrorAction SilentlyContinue
       if ($botProcess) {
-        Stop-Process -Id $botProcess.Id -Force -ErrorAction SilentlyContinue
+        Stop-TrackerProcessTree -ProcessId $botProcess.Id
       }
     }
   } catch {
-    # El PID file es auxiliar; no debe bloquear el apagado del servidor.
+    throw "No se pudo comprobar o detener el bot administrado."
   }
 
   try {
@@ -35,7 +35,7 @@ if (-not $running) {
   exit 0
 }
 
-Stop-Process -Id $running.ProcessId -Force
+Stop-TrackerProcessTree -ProcessId $running.ProcessId
 Clear-TrackerPid
 Stop-TelegramBotProcess
 Write-Host "Servidor apagado." -ForegroundColor Green

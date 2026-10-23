@@ -68,3 +68,11 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Preservar cambios ajenos y secretos locales.
 - Actualizar este archivo solo cuando cambie informacion estable.
 - La memoria persistente vive en `.codex/` y se carga siguiendo `AGENTS.md`.
+
+## Candidato HTTP local 0.1.1 (2026-10-23)
+
+- Ver D-012 (CI), D-013 (sesion local) y SECURITY_REVIEW_20261023.md.
+- UI y CSV usan public/local-api.js; bridge Node transmite SPIDER_LOCAL_TOKEN al cliente Python. No persistir ese token ni ponerlo en URLs.
+- Importar src/server.js ya no inicia DB, scheduler ni Telegram; createTrackerServer permite pruebas sinteticas.
+- Gates: npm run test:security y npm run test:python-coverage. Cierre Windows: npm run test:windows.
+- Implementacion candidata validada, merge/push pendientes del gate mas amplio indicado en BACKLOG. No adopcion/timer Linux sin host. Incidente de aislamiento inicial documentado; no afirmar datos reales inalterados.

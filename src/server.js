@@ -1,6 +1,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const http = require("node:http");
+const { randomBytes } = require("node:crypto");
+const { HttpError, validateLocalRequest, readRequestBody } = require("./http-security");
 
 const { ComicDatabase } = require("./database");
 const { getConfig, loadEnv } = require("./env");
@@ -9,35 +11,8 @@ const { TelegramBridge } = require("./telegram");
 const { SystemMonitor } = require("./system-monitor");
 const { AutomationManager, updateEnvFile } = require("./automation-manager");
 
-loadEnv();
-
-const config = getConfig();
-const db = new ComicDatabase(config.dbPath);
-const service = new ComicTrackerService({ db, config });
-const telegram = new TelegramBridge({
-  config: config.telegram,
-  service,
-  serverUrl: `http://127.0.0.1:${config.port}`,
-  projectRoot: process.cwd()
-});
-const systemMonitor = new SystemMonitor({ dataDir: path.dirname(config.dbPath), dbPath: config.dbPath });
-const automationManager = new AutomationManager({ config, projectRoot: process.cwd() });
-const envPath = path.join(process.cwd(), ".env");
-
-service.listCatalogEnemies({
-  character: "peter-parker-earth-616",
-  universeGroup: "main",
-  query: "",
-  ownership: "all",
-  appearance: "all",
-  from: "",
-  to: ""
-});
-
-service.attachTelegram(telegram);
-service.startScheduler();
-telegram.start();
-
+function createTrackerServer({ config, db, service, telegram, systemMonitor, automationManager,
+  envPath = path.join(process.cwd(), ".env"), localToken = randomBytes(32).toString("hex") }) {
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
@@ -61,20 +36,6 @@ function sendCsv(response, fileName, text) {
     "Cache-Control": "no-store"
   });
   response.end(text);
-}
-
-async function readRequestBody(request) {
-  const chunks = [];
-
-  for await (const chunk of request) {
-    chunks.push(chunk);
-  }
-
-  if (!chunks.length) {
-    return {};
-  }
-
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
 function parseCharacterPayload(body) {
@@ -138,9 +99,10 @@ function staticContentType(filePath) {
 
 function serveStatic(requestPath, response) {
   const normalizedPath = requestPath === "/" ? "/index.html" : requestPath;
-  const resolved = path.resolve(config.publicDir, `.${normalizedPath}`);
+  const resolved = path.resolve(config.publicDir, `.${decodeURIComponent(normalizedPath)}`);
+  const relative = path.relative(config.publicDir, resolved);
 
-  if (!resolved.startsWith(config.publicDir)) {
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
     sendText(response, 403, "Forbidden");
     return;
   }
@@ -159,9 +121,18 @@ function serveStatic(requestPath, response) {
 }
 
 const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: http: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
   try {
+    const url = validateLocalRequest(request, localToken);
+    // Bound every request body, including routes that do not use a payload.
+    const body = await readRequestBody(request);
+    if (request.method === "GET" && url.pathname === "/api/local-session") {
+      sendJson(response, 200, { token: localToken });
+      return;
+    }
     if (request.method === "GET" && url.pathname === "/api/dashboard") {
       sendJson(response, 200, service.getDashboard());
       return;
@@ -200,7 +171,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "PUT" && url.pathname === "/api/telegram/config") {
-      const parsed = parseTelegramConfigPayload(await readRequestBody(request));
+      const parsed = parseTelegramConfigPayload(body);
       const nextTelegramConfig = {
         botToken: parsed.hasBotToken ? parsed.botToken : config.telegram.botToken,
         pollingEnabled: parsed.hasPollingEnabled ? parsed.pollingEnabled : config.telegram.pollingEnabled !== false,
@@ -219,7 +190,7 @@ const server = http.createServer(async (request, response) => {
         TELEGRAM_BACKUP_CHAT_ID: nextTelegramConfig.backupChatId,
         TELEGRAM_ALLOWED_USER_ID: nextTelegramConfig.allowedUserId
       });
-      telegram.configure(nextTelegramConfig);
+      await telegram.configure(nextTelegramConfig);
       sendJson(response, 200, {
         botTokenConfigured: Boolean(nextTelegramConfig.botToken),
         pollingEnabled: nextTelegramConfig.pollingEnabled !== false,
@@ -233,12 +204,11 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "PUT" && url.pathname === "/api/telegram/polling") {
-      const body = await readRequestBody(request);
       config.telegram.pollingEnabled = body.enabled === true;
       updateEnvFile(envPath, {
         TELEGRAM_POLLING_ENABLED: config.telegram.pollingEnabled ? "true" : "false"
       });
-      telegram.configure(config.telegram);
+      await telegram.configure(config.telegram);
       sendJson(response, 200, {
         botTokenConfigured: Boolean(config.telegram.botToken),
         pollingEnabled: config.telegram.pollingEnabled !== false,
@@ -257,7 +227,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "PUT" && url.pathname === "/api/automation") {
-      const body = await readRequestBody(request);
       const status = await automationManager.configure({
         enabled: body.enabled === true,
         day: body.day,
@@ -356,13 +325,11 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/spanish-editions") {
-      const body = await readRequestBody(request);
       sendJson(response, 201, service.createSpanishEdition(body));
       return;
     }
 
     if (request.method === "PUT" && /^\/api\/spanish-editions\/\d+$/.test(url.pathname)) {
-      const body = await readRequestBody(request);
       const edition = service.updateSpanishEdition(Number(url.pathname.split("/")[3]), body);
       sendJson(response, 200, edition);
       return;
@@ -397,7 +364,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/catalog/import") {
-      const body = await readRequestBody(request);
       const result = service.startCatalogImport({
         characterSlug: String(body.characterSlug || ""),
         incremental: body.incremental === true
@@ -418,7 +384,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "PUT" && url.pathname === "/api/catalog/refresh-schedule") {
-      const body = await readRequestBody(request);
       const status = service.configureQuarterlyRefresh({
         enabled: body.enabled === true,
         nextRefreshAt: body.nextRefreshAt
@@ -432,7 +397,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/panini/import") {
-      const body = await readRequestBody(request);
       const result = service.startPaniniImport({ full: body.full === true, triggerSource: "manual" });
       sendJson(response, result.started ? 202 : 409, result);
       return;
@@ -446,7 +410,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "PATCH" && /^\/api\/catalog\/\d+\/collection$/.test(url.pathname)) {
-      const body = await readRequestBody(request);
       const id = Number(url.pathname.split("/")[3]);
       const issue = service.updateCatalogCollection(id, {
         owned: body.owned === true,
@@ -470,14 +433,12 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/tracked-characters") {
-      const body = await readRequestBody(request);
       const character = service.createTrackedCharacter(parseCharacterPayload(body));
       sendJson(response, 201, character);
       return;
     }
 
     if (request.method === "PUT" && /^\/api\/tracked-characters\/\d+$/.test(url.pathname)) {
-      const body = await readRequestBody(request);
       const id = Number(url.pathname.split("/").pop());
       const character = service.updateTrackedCharacter(id, parseCharacterPayload(body));
       sendJson(response, 200, character);
@@ -493,7 +454,6 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "POST" && /^\/api\/reviews\/\d+\/decision$/.test(url.pathname)) {
       const reviewId = Number(url.pathname.split("/")[3]);
-      const body = await readRequestBody(request);
       const action = String(body.action || "");
 
       if (action !== "approve" && action !== "reject") {
@@ -525,7 +485,6 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "POST" && url.pathname === "/api/sync") {
-      const body = await readRequestBody(request);
 
       if (body.weekYear || body.weekNumber) {
         sendJson(response, 400, {
@@ -546,36 +505,71 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "GET" && url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith("/api/")) {
       sendJson(response, 404, { error: "Ruta no encontrada" });
       return;
     }
 
+    if (request.method !== "GET") throw new HttpError(405, "Metodo no permitido.");
     serveStatic(url.pathname, response);
   } catch (error) {
-    console.error("Request error:", error);
-    sendJson(response, 500, { error: error.message || "Error interno" });
+    // Never expose/log arbitrary exceptions: upstream URLs can contain secrets.
+    response.setHeader("Connection", "close");
+    sendJson(response, error instanceof HttpError ? error.statusCode : 500,
+      { error: error instanceof HttpError ? error.message : "Error interno del servidor." });
   }
 });
 
-server.listen(config.port, "127.0.0.1", () => {
-  console.log(`Comic tracker disponible en http://localhost:${config.port}`);
-});
-
-let shuttingDown = false;
-function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  telegram.stop();
-  server.close(() => {
-    db.close();
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(0), 2500).unref();
+server.requestTimeout = 15_000;
+server.headersTimeout = 10_000;
+server.setTimeout(30_000, (socket) => socket.destroy());
+let shutdownPromise;
+server.shutdown = () => {
+  if (!shutdownPromise) {
+    shutdownPromise = (async () => {
+      clearInterval(service.schedulerHandle);
+      await telegram.stop();
+      await new Promise((resolve, reject) => {
+        const deadline = setTimeout(() => server.closeAllConnections(), 2_000);
+        server.close((error) => {
+          clearTimeout(deadline);
+          if (error) reject(error); else resolve();
+        });
+      });
+      db.close();
+    })().catch((error) => { shutdownPromise = undefined; throw error; });
+  }
+  return shutdownPromise;
+};
+return server;
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-process.on("exit", () => {
-  telegram.stop();
-});
+function startTracker() {
+  loadEnv();
+  const config = getConfig();
+  const db = new ComicDatabase(config.dbPath);
+  const service = new ComicTrackerService({ db, config });
+  const localToken = randomBytes(32).toString("hex");
+  const telegram = new TelegramBridge({ config: config.telegram, service,
+    serverUrl: `http://127.0.0.1:${config.port}`, localToken, projectRoot: process.cwd() });
+  const server = createTrackerServer({ config, db, service, telegram, localToken,
+    systemMonitor: new SystemMonitor({ dataDir: path.dirname(config.dbPath), dbPath: config.dbPath }),
+    automationManager: new AutomationManager({ config, projectRoot: process.cwd() }) });
+  service.attachTelegram(telegram);
+  server.listen(config.port, "127.0.0.1", () => {
+    service.listCatalogEnemies({ character: "peter-parker-earth-616", universeGroup: "main" });
+    service.startScheduler();
+    telegram.start();
+    console.log(`Comic tracker disponible en http://localhost:${config.port}`);
+  });
+  const shutdown = () => server.shutdown().then(() => process.exit(0), () => {
+    process.exitCode = 1;
+    console.error("No se pudo detener el proceso administrado; se mantiene el servidor para reintentar.");
+  });
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  return server;
+}
+
+if (require.main === module) startTracker();
+module.exports = { createTrackerServer, startTracker };

@@ -1,6 +1,6 @@
 {
   "name": "analizador-de-comics",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tracker local de comics de Spider-Man y lineas relacionadas, con SQLite, UI y revision por Telegram.",
   "main": "src/server.js",
   "scripts": {
@@ -15,7 +15,10 @@
     "repair:spanish-covers": "node scripts/repair-spanish-covers.js",
     "repair:dates": "node scripts/repair-catalog-dates.js",
     "repair:appearances": "node scripts/repair-appearance-details.js",
-    "test": "node tests/marvel.test.js && node tests/panini.test.js && node tests/universo-marvel.test.js && node tests/catalog.test.js && node tests/service.test.js && node tests/runtime.test.js"
+    "test": "node tests/marvel.test.js && node tests/panini.test.js && node tests/universo-marvel.test.js && node tests/catalog.test.js && node tests/service.test.js && node tests/runtime.test.js && node --test tests/http-security.test.js tests/server.test.js tests/ui-security.test.js tests/telegram.test.js && python -B tests/telegram_bot_test.py",
+    "test:security": "node --test --experimental-test-coverage --test-coverage-include=src/http-security.js --test-coverage-include=src/server.js --test-coverage-include=public/local-api.js --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 tests/http-security.test.js tests/server.test.js tests/ui-security.test.js",
+    "test:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests/process-tree.test.ps1",
+    "test:python-coverage": "python -B -m coverage run --branch --data-file=data/security-review/python.coverage --include=src/telegram_bot.py tests/telegram_bot_test.py && python -B -m coverage report --data-file=data/security-review/python.coverage --fail-under=100"
   },
   "license": "MIT"
 }

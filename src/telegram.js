@@ -2,13 +2,14 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 
 class TelegramBridge {
-  constructor({ config, service, serverUrl, projectRoot = process.cwd() }) {
+  constructor({ config, service, serverUrl, localToken, projectRoot = process.cwd() }) {
     this.config = config;
     this.service = service;
     this.serverUrl = serverUrl;
+    this.localToken = localToken;
     this.projectRoot = projectRoot;
     this.process = null;
     this.restartTimer = null;
@@ -59,13 +60,15 @@ class TelegramBridge {
     const child = spawn(this.config.pythonBin || "python", [path.join(this.projectRoot, "src", "telegram_bot.py")], {
       cwd: this.projectRoot,
       windowsHide: true,
+      detached: process.platform !== "win32",
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
         PYTHONUNBUFFERED: "1",
         TELEGRAM_BOT_TOKEN: this.config.botToken,
         TELEGRAM_ALLOWED_USER_ID: this.config.allowedUserId || "",
-        TELEGRAM_SERVER_URL: this.serverUrl
+        TELEGRAM_SERVER_URL: this.serverUrl,
+        SPIDER_LOCAL_TOKEN: this.localToken
       }
     });
 
@@ -96,20 +99,44 @@ class TelegramBridge {
     });
   }
 
-  stop() {
+  async stop() {
     clearTimeout(this.restartTimer);
     this.restartTimer = null;
     const child = this.process;
     this.process = null;
     this.lastStoppedAt = new Date().toISOString();
-    if (child && !child.killed) {
-      child.kill();
+    if (child && child.exitCode === null && child.signalCode === null) {
+      // On Windows terminate the managed tree, including any Python helpers.
+      if (process.platform === "win32") {
+        const result = spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+        if (result.status !== 0 && child.exitCode === null) {
+          this.process = child;
+          throw new Error("No se pudo detener el bot administrado.");
+        }
+      } else {
+        process.kill(-child.pid, "SIGTERM");
+      }
+      await new Promise((resolve, reject) => {
+        const deadline = setTimeout(() => {
+          if (process.platform === "win32") child.kill("SIGKILL");
+          else process.kill(-child.pid, "SIGKILL");
+        }, 1_500);
+        child.once("exit", () => {
+          clearTimeout(deadline);
+          if (process.platform !== "win32") {
+            try { process.kill(-child.pid, "SIGKILL"); }
+            catch (error) { if (error.code !== "ESRCH") { reject(new Error("No se pudo detener el grupo del bot.")); return; } }
+          }
+          resolve();
+        });
+      });
     }
+    this.process = null;
     this.clearBotPid(child?.pid);
   }
 
-  configure(nextConfig) {
-    this.stop();
+  async configure(nextConfig) {
+    await this.stop();
     Object.assign(this.config, nextConfig);
     this.lastPollAt = "";
     this.lastError = "";
@@ -122,7 +149,7 @@ class TelegramBridge {
 
     const stderr = readline.createInterface({ input: child.stderr });
     stderr.on("line", (line) => {
-      const message = String(line || "").trim();
+      const message = this.redactSecrets(line).trim();
       if (message) {
         this.lastError = message.slice(0, 600);
         console.error("Bot Telegram Python:", message);
@@ -131,7 +158,7 @@ class TelegramBridge {
   }
 
   handleBotProcessLine(line) {
-    const raw = String(line || "").trim();
+    const raw = this.redactSecrets(line).trim();
     if (!raw) {
       return;
     }
@@ -147,6 +174,14 @@ class TelegramBridge {
     } catch {
       console.log("Bot Telegram Python:", raw);
     }
+  }
+
+  redactSecrets(value) {
+    let text = String(value || "");
+    for (const secret of [this.config.botToken, this.localToken]) {
+      if (secret) text = text.split(secret).join("[redacted]");
+    }
+    return text;
   }
 
   scheduleRestart() {

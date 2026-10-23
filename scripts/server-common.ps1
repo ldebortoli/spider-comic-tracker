@@ -39,3 +39,16 @@ function Save-TrackerPid([int] $ProcessId) {
 function Clear-TrackerPid {
   Remove-Item -LiteralPath $script:PidFile -Force -ErrorAction SilentlyContinue
 }
+
+function Stop-TrackerProcessTree([int] $ProcessId) {
+  $managedProcess = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+  if (-not $managedProcess) { return }
+  $killer = Start-Process -FilePath "$env:WINDIR\System32\taskkill.exe" `
+    -ArgumentList @("/PID", "$ProcessId", "/T", "/F") -WindowStyle Hidden -Wait -PassThru
+  if ($killer.ExitCode -ne 0 -and -not $managedProcess.HasExited) {
+    throw "No se pudo detener el arbol de procesos administrado."
+  }
+  if (-not $managedProcess.WaitForExit(5000)) {
+    throw "El servidor no se detuvo dentro del tiempo esperado."
+  }
+}

@@ -181,3 +181,47 @@ La fuente usada son las categorias de apariciones de Marvel Database. El catalog
 ```bash
 npm test
 ```
+
+## Acceso HTTP local (0.1.1)
+
+El servidor conserva la escucha en `127.0.0.1`. Acepta un Host `localhost` o
+`127.0.0.1` con el puerto de escucha; cuando se envia Origin debe coincidir
+exactamente con ese Host, puerto y esquema HTTP. Las solicitudes de otro sitio
+se rechazan tambien mediante Fetch Metadata. No habilita CORS.
+
+Cada arranque genera un token aleatorio en memoria. La UI obtiene su sesion local
+y autentica las consultas, cambios y exportaciones CSV con `X-Spider-Token`.
+Renueva la sesion al reiniciar el servidor. El puente administrado transmite el
+token al bot hijo mediante `SPIDER_LOCAL_TOKEN`; no necesita cambiar el bot, la
+cuenta o las credenciales de Telegram. No colocar este token en URLs, archivos de
+configuracion ni logs. Un cliente propio debe integrarse con este arranque local;
+un bot Python lanzado por separado requiere el token del mismo proceso servidor.
+
+Este control protege el acceso HTTP desde sitios ajenos. Un proceso local con
+acceso al entorno puede actuar como cliente de confianza; no se pretende aislar
+procesos hostiles del mismo usuario. El cuerpo JSON tiene un limite de 64 KiB
+reales, incluso con transferencia chunked. Los errores inesperados devuelven un
+mensaje generico. Las URLs externas de la UI admiten solo HTTP/HTTPS.
+
+Validaciones adicionales (sin Telegram real ni base habitual):
+
+```bash
+npm run test:security
+npm run test:python-coverage
+npm run test:windows
+node tests/baseline-security-repro.js
+```
+
+La medicion Python requiere `coverage` en el entorno de desarrollo; el runtime
+de la app no incorpora una dependencia nueva. El gate HTTP mide al 100% lineas,
+ramas y funciones de `server.js`, `http-security.js` y `local-api.js`; no es una
+medicion global de todo el repositorio. El gate Python mide `telegram_bot.py`.
+El test Windows compila el candidato en `data/security-review/windows-candidate`
+y prueba arboles sinteticos, incluido FormClosing de una ventana oculta.
+
+Para adoptar el cambio, actualizar juntos servidor, UI, ambos archivos del puente
+y los controles. En Windows recompilar el panel con
+`scripts/build-server-control.ps1` despues de respaldar el ejecutable existente;
+el candidato de pruebas no reemplaza `bin/`. Ver evidencia, incidente de la
+validacion inicial, limites y rollback en
+[el informe del lote](.codex/SECURITY_REVIEW_20261023.md).

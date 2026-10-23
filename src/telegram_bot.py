@@ -4,6 +4,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from io import BytesIO
 from datetime import datetime, timezone
 
@@ -14,6 +15,7 @@ from telegram.ext import Application, CallbackQueryHandler, CommandHandler, Cont
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 ALLOWED_USER_ID = os.environ.get("TELEGRAM_ALLOWED_USER_ID", "").strip()
 SERVER_URL = os.environ.get("TELEGRAM_SERVER_URL", "http://127.0.0.1:8787").rstrip("/")
+LOCAL_TOKEN = os.environ.get("SPIDER_LOCAL_TOKEN", "")
 
 
 def utc_now():
@@ -21,7 +23,11 @@ def utc_now():
 
 
 def emit(event_type, **payload):
-    print(json.dumps({"type": event_type, **payload}, ensure_ascii=False), flush=True)
+    text = json.dumps({"type": event_type, **payload}, ensure_ascii=False)
+    for secret in (TOKEN, LOCAL_TOKEN):
+        if secret:
+            text = text.replace(secret, "[redacted]")
+    print(text, flush=True)
 
 
 def user_payload(user):
@@ -41,14 +47,25 @@ def is_authorized(user):
 
 
 def request_json(path, method="GET", body=None):
+    server = urlsplit(SERVER_URL)
+    if (server.scheme != "http" or server.hostname not in ("127.0.0.1", "localhost")
+            or server.username or server.password or server.path or server.query or server.fragment
+            or not path.startswith("/api/") or "\\" in path or not LOCAL_TOKEN):
+        raise ValueError("Configuracion de acceso local invalida.")
     data = None
-    headers = {"Accept": "application/json"}
+    headers = {"Accept": "application/json", "X-Spider-Token": LOCAL_TOKEN}
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
 
     request = urllib.request.Request(f"{SERVER_URL}{path}", data=data, headers=headers, method=method)
-    with urllib.request.urlopen(request, timeout=20) as response:
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    # Do not forward the local token through redirects or environment proxies.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    with opener.open(request, timeout=20) as response:
         raw = response.read().decode("utf-8")
         return json.loads(raw) if raw else {}
 

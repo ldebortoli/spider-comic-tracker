@@ -179,7 +179,7 @@ function Start-TrackerFromPanel {
 function Stop-TrackerFromPanel {
   $running = Get-TrackerProcess
   if ($running) {
-    Stop-Process -Id $running.ProcessId -Force
+    Stop-TrackerProcessTree -ProcessId $running.ProcessId
   }
   Clear-TrackerPid
   Update-ServerStatus

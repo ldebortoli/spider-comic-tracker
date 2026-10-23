@@ -275,11 +275,7 @@ namespace SpiderTracker
                 Process process = GetServerProcess();
                 if (process != null && !process.HasExited)
                 {
-                    process.Kill();
-                    if (!process.WaitForExit(5000))
-                    {
-                        throw new InvalidOperationException("El servidor no se detuvo dentro del tiempo esperado.");
-                    }
+                    StopProcessTree(process);
                 }
                 if (File.Exists(pidFile)) File.Delete(pidFile);
             }
@@ -300,6 +296,23 @@ namespace SpiderTracker
                 FileName = "http://localhost:" + ServerPort,
                 UseShellExecute = true
             });
+        }
+
+        internal static void StopProcessTree(Process process)
+        {
+            using (Process killer = Process.Start(new ProcessStartInfo
+            {
+                FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "taskkill.exe"),
+                Arguments = "/PID " + process.Id + " /T /F",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            }))
+            {
+                if (!killer.WaitForExit(5000) || (killer.ExitCode != 0 && !process.HasExited)
+                    || !process.WaitForExit(5000))
+                    throw new InvalidOperationException("No se pudo detener el arbol de procesos administrado.");
+            }
         }
 
         private static string FindNode()

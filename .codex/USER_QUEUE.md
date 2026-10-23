@@ -8,7 +8,7 @@ No hay pedidos pendientes.
 
 - [2026-08-20] Adoptar la política global de CI: ejecutar validaciones locales y hacer push cuando corresponda, pero no esperar, mirar, sondear ni monitorear GitHub Actions u otra CI remota después del push salvo que el usuario lo pida explícitamente en la solicitud actual. Registrar esta convención estable en la memoria del proyecto; si el resultado de CI ya está disponible puede informarse, sin gastar tiempo ni tokens esperándolo.
 
-Ambos pedidos incorporados sin duplicados a BACKLOG.md el 2026-10-22. Privacidad: vigencia verificada solo lectura; CI: D-012. Incorporado no significa completado; el resultado esta en DONE. Texto recibido preservado sin atribuir autoria.
+Ambos pedidos incorporados sin duplicados a BACKLOG.md el 2026-10-23. Privacidad: vigencia verificada solo lectura; CI: D-012. Incorporado no significa completado; el resultado esta en DONE. Texto recibido preservado sin atribuir autoria.
 
 
 - [2026-07-11] Ordenar el dropdown de enemigos por cantidad de apariciones y permitir alternar al orden alfabetico. Incorporado en BACKLOG.md.

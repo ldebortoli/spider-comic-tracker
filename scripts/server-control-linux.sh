@@ -23,6 +23,9 @@ while true; do
     "Apagar") message="$($CONTROL stop 2>&1 || true)"; zenity --info --text="$message" --width=420 ;;
     "Abrir aplicación") $CONTROL open ;;
     "Actualizar estado") ;;
-    *) exit 0 ;;
+    *)
+      if message="$($CONTROL stop 2>&1)"; then exit 0; fi
+      zenity --error --text="$message" --width=420
+      ;;
   esac
 done

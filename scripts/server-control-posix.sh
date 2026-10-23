@@ -57,6 +57,15 @@ stop_server() {
   local pid
   if pid="$(server_pid)"; then
     kill "$pid"
+    local attempt
+    for ((attempt = 0; attempt < 60; attempt += 1)); do
+      if ! kill -0 "$pid" 2>/dev/null; then break; fi
+      sleep 0.1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "El servidor no termino; el panel debe permanecer abierto." >&2
+      return 1
+    fi
     rm -f "$PID_FILE"
     echo "Servidor apagado."
   else
