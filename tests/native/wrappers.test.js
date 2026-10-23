@@ -41,5 +41,8 @@ test("all CMD entry points preserve their launch directory and invoke only their
       assert.equal(fs.realpathSync.native(cwd), fs.realpathSync.native(root));
       assert.equal(args || "", script ? `-NoProfile|-ExecutionPolicy|Bypass|-File|.\\scripts\\${script}` : "");
     }
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    // The panel's asynchronous fixture process can briefly retain its cwd.
+    await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 });

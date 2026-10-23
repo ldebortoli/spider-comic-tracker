@@ -4,7 +4,7 @@
 
 # IN PROGRESS
 
-- [2026-10-23] IN PROGRESS: corregir la comparacion de rutas cortas/largas de Windows en la prueba CMD, validar localmente, commit/push normal a main y verificar CI por autorizacion explicita actual. No modificar apagado programado ni datos reales.
+- [2026-10-23] IN PROGRESS: comparacion CMD corregida en bd5b174 y gate local completo al100%. CI39982102869 revelo EPERM en limpieza de fixture del panel asincrono; estabilizar ese harness, validar, push normal y verificar CI por autorizacion explicita actual. Sin modificar apagado programado ni datos reales.
 
 # DONE
 

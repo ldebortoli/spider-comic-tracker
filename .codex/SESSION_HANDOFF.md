@@ -2,7 +2,7 @@
 
 ## Trabajo autorizado actual
 
-- IN PROGRESS: prueba de rutas corregida y validada; pendiente commit/push normal y verificacion CI. Autorizacion explicita de Lucas; no modificar apagado programado ni datos reales.
+- IN PROGRESS: comparacion de rutas corregida en bd5b174, push normal verificado. CI39982102869 paso todos los motores al100% pero fallo al limpiar la fixture CMD con EPERM. Retener cwd con un proceso sintetico por2s reproduce el fallo; limpieza asincrona con reintentos acotados ya pasa esa reproduccion. Revalidar gate nativo, push normal y comprobar CI del ajuste. Autorizacion explicita de Lucas; no modificar apagado programado ni datos reales.
 - CI anterior 39974350191 fallo unicamente en tests/native/wrappers.test.js: compara literalmente TEMP con alias 8.3 frente al cwd expandido de .NET. JS/Python/C#/PowerShell ya pasaron al 100% en ese run. Normalizar identidad de ambos directorios sin debilitar el contrato.
 - Sin cambios de aplicacion previstos: version 0.1.3 se conserva para una entrega de pruebas/memoria.
 - `npm run test:coverage` completo pasa: JS11566/11566 lineas,3686/3686 ramas,803/803 funciones; Python146 sentencias/34 ramas; C#244 lineas/214 secuencias/38 ramas explicitas/19 metodos; PowerShell489 comandos; Bash266 comandos/6 funciones, todos100%. Se mantienen los contratos CMD y la limitacion AppleScript ya documentada.
