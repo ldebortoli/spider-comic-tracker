@@ -4,7 +4,7 @@
 
 # IN PROGRESS
 
-No hay tareas en curso.
+- [2026-10-23] IN PROGRESS: corregir la comparacion de rutas cortas/largas de Windows en la prueba CMD, validar localmente, commit/push normal a main y verificar CI por autorizacion explicita actual. No modificar apagado programado ni datos reales.
 
 # DONE
 

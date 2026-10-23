@@ -37,7 +37,8 @@ test("all CMD entry points preserve their launch directory and invoke only their
       for (let tries = 0; tries < 100 && !fs.existsSync(log); tries++) await new Promise(resolve => setTimeout(resolve, 20));
       assert.ok(fs.existsSync(log), name);
       const [cwd, args] = fs.readFileSync(log, "utf8").trimEnd().split(/\r?\n/);
-      assert.equal(cwd, root);
+      // TEMP may use an 8.3 alias while .NET expands the same directory's name.
+      assert.equal(fs.realpathSync.native(cwd), fs.realpathSync.native(root));
       assert.equal(args || "", script ? `-NoProfile|-ExecutionPolicy|Bypass|-File|.\\scripts\\${script}` : "");
     }
   } finally { fs.rmSync(root, { recursive: true, force: true }); }

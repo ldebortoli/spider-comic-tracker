@@ -115,3 +115,11 @@ No borrar decisiones anteriores. Si una decision cambia, agregar una nueva entra
 - La copia limpia encontro una dependencia del autoload Get-FileHash del harness. El calculo de hashes ahora usa SHA256 de .NET, tanto en bootstrap como en verificacion de fuentes, sin depender de modulos o scopes de Pester.
 
 - Cierre verificado de D-015: integrado por fast-forward y publicado en origin/main como f762daa el 2026-10-23. Se completaron checkout limpio con core.autocrlf=true/LF, gate local completo y WinForms/procesos reales sinteticos. Tras la correccion final del scheduler, gate HTTP y todo JS volvieron a pasar al 100% desde la copia limpia. Sin modificar protecciones ni observar CI remota.
+
+## D-016 - Identidad de directorios Windows en el contrato CMD
+
+- Fecha: 2026-10-23. Lucas autoriza corregir la prueba, ejecutar validaciones, commit/push normal a main y verificar CI esta vez. Conservar apagado programado y datos reales.
+- Causa reproducida del run 39974350191: TEMP puede usar un alias 8.3 y Directory.GetCurrentDirectory expandirlo. La igualdad literal de cwd y raiz falla aunque designen el mismo directorio.
+- Decision: comparar fs.realpathSync.native en ambos lados de la asercion existente. Conserva igualdad exacta de la identidad resuelta; no quitar el chequeo de cwd, ni relajar argumentos, inventario o bytes de los seis lanzadores.
+- Reproduccion local con TEMP/TMP 8.3: prueba original falla; misma prueba corregida pasa. Solo pruebas/memoria, sin incremento de version de aplicacion (continua 0.1.3), cambios de scheduler, tareas, datos o dependencias.
+- Validacion previa al push: gate local completo al100% y seis wrappers aprobados; inyectar un cwd distinto conserva el fallo esperado. Snapshot de once archivos locales reales y XML de la tarea semanal sin diferencias; protecciones GitHub habilitadas y autor noreply verificados. CI remoto pendiente de verificar tras publicar.
