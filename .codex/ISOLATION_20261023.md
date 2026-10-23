@@ -3,6 +3,8 @@
 Base verificada local/remota: 8df19a44025ed4bdd64501c42a526091456f8b85.
 Integracion preparada desde una copia temporal; instalacion habitual separada.
 
+Fuente publicada por push normal en main: fb58117b314aef56a5a8d92c318ef26989ae117c, SHA remoto verificado. [CI40006945072](https://github.com/ldebortoli/spider-comic-tracker/actions/runs/40006945072) completado SUCCESS para ese SHA: JavaScript, Python y bloque C#/PowerShell/CMD aprobados. POSIX/WinForms remotos opcionales no disparados; ya aprobados localmente. El cierre documental posterior no modifica fuentes y queda excluido por el filtro de rutas del workflow.
+
 ## Cambio
 
 - El callback de cierre forzado del bridge captura errores. ESRCH se tolera; otros errores rechazan la promesa y conservan el hijo para reintentar. El error no escapa del temporizador.
