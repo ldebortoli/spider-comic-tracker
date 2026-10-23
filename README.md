@@ -1,5 +1,14 @@
 # Analizador de comics
 
+Las pruebas `npm test` y `npm run test:*` usan una copia de código sin `.env`,
+datos habituales ni Git. El guard se carga antes de importar la aplicación y
+fuerza configuración sintética. Las copias de diagnóstico se conservan y sólo
+se devuelven reportes; las pruebas no arrancan el perfil habitual.
+Los gates nativos requieren las herramientas fijadas en
+`tests/install-coverage-tools.ps1`, preparadas previamente o disponibles en caché.
+CI prepara esas mismas dependencias antes de ejecutar las pruebas aisladas;
+el gate no descarga herramientas durante la validación.
+
 Aplicacion local para catalogar las apariciones historicas de Spider-Man/Peter Parker de Earth-616, marcar que material ya esta cubierto por tu coleccion y seguir comics nuevos de personajes relacionados.
 
 ## Que hace
@@ -248,7 +257,7 @@ validacion inicial, limites y rollback en
 [el informe del lote](.codex/SECURITY_REVIEW_20261023.md).
 
 
-## Version actual y validacion (version **0.1.3**)
+## Version actual y validacion (version **0.1.4**)
 
 Instalar dependencias de desarrollo con `npm ci` (Node 24.15 o posterior) y
 `python -m pip install -r requirements-dev.txt`.

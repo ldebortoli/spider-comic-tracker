@@ -118,8 +118,12 @@ class TelegramBridge {
       }
       await new Promise((resolve, reject) => {
         const deadline = setTimeout(() => {
-          if (process.platform === "win32") child.kill("SIGKILL");
-          else process.kill(-child.pid, "SIGKILL");
+          try {
+            if (process.platform === "win32") child.kill("SIGKILL");
+            else process.kill(-child.pid, "SIGKILL");
+          } catch (error) {
+            if (error.code !== "ESRCH") reject(new Error("No se pudo forzar el cierre del bot."));
+          }
         }, 1_500);
         child.once("exit", () => {
           clearTimeout(deadline);
@@ -129,7 +133,7 @@ class TelegramBridge {
           }
           resolve();
         });
-      });
+      }).catch(error => { this.process = child; throw error; });
     }
     this.process = null;
     this.clearBotPid(child?.pid);

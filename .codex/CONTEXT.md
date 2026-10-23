@@ -95,3 +95,10 @@ Aplicacion local para catalogar apariciones de Spider-Man y personajes relaciona
 - Todos los motores instrumentables al 100%; ver COVERAGE_20261023.md y D-015. CMD/AppleScript sin motor utilizable tienen contratos separados; no se les asigna un porcentaje. Compilacion/UI de AppleScript requiere macOS.
 - CI Windows rapida por push/PR con cache/timeout/concurrency; POSIX lento y WinForms real adicional solo workflow_dispatch/full. No monitorear CI despues del push.
 - Los importadores del servicio admiten clientes opcionales inyectados para probar orquestacion sin red, conservando los defaults productivos.
+
+## Contencion de pruebas y bridge 0.1.4 (2026-10-23)
+
+- Todas las entradas npm test/test:* exportan codigo y dependencias a una copia sin Git, .env ni datos habituales. Preload JS y guard Python se instalan antes de importar aplicacion; fuerzan configuracion sintetica y bloquean efectos de importacion, red externa, rutas reales, procesos y SQLite de aplicacion fuera de fixtures.
+- Las herramientas nativas fijadas se preparan antes del gate offline. No se reducen inventarios ni umbrales; contencion accidental de pruebas, sin prometer un sandbox del SO contra codigo hostil de la misma identidad.
+- TelegramBridge.stop captura errores del callback de cierre forzado: ESRCH se tolera; otros rechazan y conservan la referencia del hijo para reintentar. Apagado semanal, scheduler y launchers actuales conservados.
+- Fuente se integra desde una copia temporal. El EXE habitual y el arbol operativo permanecen pendientes de exclusion vigente verificable de escritores/disparadores. No iniciar servidor, sincronizar, restaurar datos ni reactivar tareas para validar.

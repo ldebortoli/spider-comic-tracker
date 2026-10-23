@@ -1,3 +1,12 @@
+# Integracion 0.1.4 - 2026-10-23
+
+- Base local/remota8df19a44 limpia y propietario anterior terminado/sin cargar al iniciar. Integracion en copia temporal independiente; no se modifica el arbol habitual ni su EXE.
+- Delta: timer forzado del bridge captura errores y conserva hijo/reintento; arnes JS/Python general antes de imports y todas las entradas npm aisladas. Fuente/paquete/README0.1.4, fuente C# y apagado semanal/POSIX/cambios recientes del usuario preservados.
+- Gate completo exit0 desde checkout normal exportado sin .git/.env: JS23fuentes11570lineas/3684ramas/804funciones; Python146sentencias/34ramas; C#244lineas/214secuencias/38ramas/19metodos; PowerShell489comandos y Bash266comandos/6funciones, todos100%. CMD6/AppleScript contrato y WinForms/arboles sinteticos aprobados; macOS nativo pendiente. Detalle: ISOLATION_20261023.md.
+- Mutation ESRCH invertida: caso focal falla acotado5s; codigo final pasa. Probes previos a imports y seis mutaciones de efectos bloqueados; privacidad de archivos seleccionados/diff LF aprobados. Sin DB/config habituales, red externa de aplicacion, Telegram/scraping ni procesos ajenos.
+- StagingEXE0.1.4.0,45056bytes,SHA9f190824e7a6654ae38bab3ba022257022af7f3d6997ebd89abb03767336d4a0; nunca ejecutado. Adopcion local BLOQUEADA hasta exclusion vigente confirmada de escritores/disparadores; consulta Scheduler previa denegada no se reintenta ni elude. Pedido de confirmacion de ventana pendiente; ninguna reactivacion automatica.
+- Fuente revisada lista para commit/push normal; conservar remoto/main exacto, CI por SHA y cierre documental posterior. Todos los USER_QUEUE procesados historicos DONE, sin duplicados. Evidencia local de esta integracion y temporales propios retenidos; no borrar aun.
+
 # Entrega 2026-10-23 ART - prueba CMD corregida y CI aprobado
 
 ## Resultado actual

@@ -47,6 +47,8 @@ jobs:
           key: coverage-tools-${{ runner.os }}-${{ hashFiles('tests/install-coverage-tools.ps1') }}
       - run: npm ci --ignore-scripts
       - run: python -m pip install -r requirements-dev.txt
+      - name: Prepare existing pinned native coverage dependencies
+        run: ./tests/install-coverage-tools.ps1
       - name: JavaScript full source inventory and exact 100 percent
         run: npm run test:coverage:node
       - name: Python exact 100 percent

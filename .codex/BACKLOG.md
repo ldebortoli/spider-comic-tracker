@@ -4,7 +4,8 @@
 
 # IN PROGRESS
 
-No hay tareas en curso.
+- [2026-10-23] IN PROGRESS: integrar el delta 0.1.4 del bridge y el arnes de pruebas previo a imports sobre 8df19a44, verificar cobertura/privacidad y publicar fuente por push normal desde copia aislada.
+- [2026-10-23] Adopcion local 0.1.4 y EXE habitual [BLOCKED: falta evidencia vigente de exclusion de paneles, servidor, bridge y disparadores durante la ventana; las lecturas Scheduler previamente denegadas no se reintentan ni sustituyen]. Staging compilado, nunca ejecutado; no tocar datos/configuracion ni procesos ajenos.
 
 # DONE
 

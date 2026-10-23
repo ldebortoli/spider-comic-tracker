@@ -170,6 +170,41 @@ test("Telegram process lifecycle isolates managed PID files, diagnostics, restar
 
 const review = { id: 2, title: "Fixture", releaseDate: "2026-01-01", fandomUrl: "https://example.test/issue" };
 
+test("force-stop timer failures reject safely and retain the child for a shutdown retry", async () => {
+  for (const platform of ["win32", "linux"]) {
+    for (const code of ["EPERM", "ESRCH"]) {
+      const h = harness(platform);
+      const bridge = h.create({ botToken: "fixture" });
+      bridge.start();
+      const child = bridge.process;
+      const failure = Object.assign(Error("synthetic force-stop failure"), { code });
+      const stopped = bridge.stop();
+      // Attach the rejection assertion before invoking the deferred callback.
+      const rejected = code === "EPERM" ? assert.rejects(stopped, /No se pudo forzar el cierre del bot/) : undefined;
+      if (platform === "win32") child.kill = () => { throw failure; };
+      else h.setKillError(failure);
+      const deadline = [...h.timers.values()].find(timer => timer.delay === 1500);
+      assert.doesNotThrow(() => deadline.fn(), "timer callback must settle the promise instead of throwing");
+      if (code === "ESRCH") {
+        h.setKillError(undefined);
+        child.emit("exit", 0);
+        await stopped;
+        assert.equal(bridge.process, null);
+      } else {
+        await rejected;
+        assert.equal(bridge.process, child);
+        h.setKillError(undefined);
+        child.kill = () => {};
+        const retry = bridge.stop();
+        child.emit("exit", 0);
+        await retry;
+        assert.equal(bridge.process, null);
+      }
+    }
+  }
+});
+
+
 test("review, summary, backup and connection messages retain their metadata and default text", async () => {
   const h = harness();
   const bridge = h.create({ botToken: "fixture", reviewChatId: "review", summaryChatId: "summary", backupChatId: "backup" });

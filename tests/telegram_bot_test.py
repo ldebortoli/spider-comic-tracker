@@ -1,3 +1,4 @@
+import python_isolation  # Must precede any application import.
 import importlib.util
 import json
 import os
@@ -24,9 +25,12 @@ ext.Application = ext.CallbackQueryHandler = ext.CommandHandler = object
 ext.ContextTypes = types.SimpleNamespace(DEFAULT_TYPE=object)
 with patch.dict(sys.modules, {"telegram": telegram, "telegram.ext": ext}), patch.dict(os.environ, {
         "TELEGRAM_BOT_TOKEN": "fake-bot", "SPIDER_LOCAL_TOKEN": "fake-local"}):
+    effects_before_import = {key: python_isolation.state[key] for key in ["listeners", "connections", "blocked"]}
     spec = importlib.util.spec_from_file_location("synthetic_telegram_bot", Path(__file__).resolve().parents[1] / "src/telegram_bot.py")
     bot = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(bot)
+    assert {key: python_isolation.state[key] for key in effects_before_import} == effects_before_import
+    assert python_isolation.state["imports"] == 1
 
 
 class Handler(BaseHTTPRequestHandler):
