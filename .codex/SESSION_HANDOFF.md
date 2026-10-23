@@ -1,10 +1,11 @@
-# Seguimiento 2026-10-23 ART - prueba de rutas CMD y CI
+# Entrega 2026-10-23 ART - prueba CMD corregida y CI aprobado
 
-## Trabajo autorizado actual
+## Resultado actual
 
-- IN PROGRESS: comparacion de rutas corregida en bd5b174, push normal verificado. CI39982102869 paso todos los motores al100% pero fallo al limpiar la fixture CMD con EPERM. Retener cwd con un proceso sintetico por2s reproduce el fallo; limpieza asincrona con reintentos acotados ya pasa esa reproduccion. Revalidar gate nativo, push normal y comprobar CI del ajuste. Autorizacion explicita de Lucas; no modificar apagado programado ni datos reales.
+- DONE: comparacion de rutas corregida en bd5b174 y limpieza acotada de fixture en 544ef36, ambos con push normal verificado en main. Gate local completo aprobado y gate nativo revalidado despues del segundo ajuste; TEMP8.3 y cwd retenido por2s pasan. Autorizacion explicita de Lucas cumplida; sin modificar apagado programado ni datos reales.
+- CI39983176683 completado SUCCESS para 544ef3654b203480e185b5367427fe9e766ff077: JS/Python y bloque C#/PowerShell/CMD aprobados. Verificado por API el SHA, conclusion final y pasos. Suites adicionales manuales no disparadas. Enlace: https://github.com/ldebortoli/spider-comic-tracker/actions/runs/39983176683. Sigue commit solo documental, excluido por el filtro de rutas del workflow.
 - CI anterior 39974350191 fallo unicamente en tests/native/wrappers.test.js: compara literalmente TEMP con alias 8.3 frente al cwd expandido de .NET. JS/Python/C#/PowerShell ya pasaron al 100% en ese run. Normalizar identidad de ambos directorios sin debilitar el contrato.
-- Sin cambios de aplicacion previstos: version 0.1.3 se conserva para una entrega de pruebas/memoria.
+- Sin cambios de aplicacion: version 0.1.3 conservada para esta entrega de pruebas/memoria. No queda trabajo ejecutable del pedido ni de USER_QUEUE. La politica de no mirar CI salvo pedido actual vuelve a aplicar para futuras entregas.
 - `npm run test:coverage` completo pasa: JS11566/11566 lineas,3686/3686 ramas,803/803 funciones; Python146 sentencias/34 ramas; C#244 lineas/214 secuencias/38 ramas explicitas/19 metodos; PowerShell489 comandos; Bash266 comandos/6 funciones, todos100%. Se mantienen los contratos CMD y la limitacion AppleScript ya documentada.
 - Prueba CMD con TEMP/TMP 8.3 falla antes de la correccion y pasa despues para los seis wrappers. Inyeccion de cwd incorrecto sigue fallando como corresponde. Archivos reales y XML de la tarea semanal coinciden con el snapshot anterior. Sin cambios de fuentes productivos, dependencias, version o workflow.
 - Limpieza auxiliar: revision automatica rechazo eliminar la carpeta temporal 8.3 de reproduccion con `blocked by policy`; se conserva intacta, sin reintentar ni afectar la entrega. Su ruta local esta en la evidencia de la sesion; solo contiene fixture.txt sintetico.

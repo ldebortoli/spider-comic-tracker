@@ -4,10 +4,11 @@
 
 # IN PROGRESS
 
-- [2026-10-23] IN PROGRESS: comparacion CMD corregida en bd5b174 y gate local completo al100%. CI39982102869 revelo EPERM en limpieza de fixture del panel asincrono; estabilizar ese harness, validar, push normal y verificar CI por autorizacion explicita actual. Sin modificar apagado programado ni datos reales.
+No hay tareas en curso.
 
 # DONE
 
+- [2026-10-23] Corregir prueba de rutas CMD y verificar CI: bd5b174 compara directorios resueltos y 544ef36 espera de forma acotada la liberacion de la fixture. Reproducciones TEMP8.3/cwd retenido y rechazo de cwd distinto, gate local completo100% y gate nativo final aprobados; ambos commits publicados por push normal en main. CI39983176683 SUCCESS confirmado para 544ef36 (JS/Python/C#/PowerShell100%, seis CMD). Sin cambios de producto, version0.1.3, apagado programado o datos reales. Cierre documental posterior no dispara CI por su filtro de rutas.
 - [2026-10-23] Resolver cobertura global y publicar 0.1.3 en main: commit f762daa, push y SHA remoto verificados. Todos los motores instrumentables al 100%: 23 JS, Python, C#, diez PowerShell y cinco Bash; gates estrictos, checkout limpio LF/core.autocrlf=true y WinForms/arboles sinteticos aprobados. CMD completo y contrato AppleScript separados sin porcentajes inventados; prueba nativa macOS pendiente por entorno. CI rapida por push/PR, suites largas manuales; CI remota no monitoreada.
 - [2026-10-23] Completar publicacion del apagado semanal 0.1.2 (9229136) junto con 0.1.1/0.1.3 en main: recibo Telegram final, comprobacion cada minuto y apagado 24 h despues; preserva el scheduler si falla detener Telegram. Solo temporizador interno, ninguna automatizacion AI/tarea Windows duplicada. Sin envios ni DB reales durante validacion.
 - [2026-10-23] Implementar candidato HTTP local 0.1.1 con Host/Origin/token, limite streaming, errores/URL seguros, UI/CSV y bridge adaptados, cierre de arbol Windows y fuentes POSIX. Suite local y gates HTTP/Python pasan; limites e incidente inicial registrados en SECURITY_REVIEW_20261023.md. Integrado/publicado en main junto con el cierre del gate amplio en 0.1.3.
