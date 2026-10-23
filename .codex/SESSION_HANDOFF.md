@@ -1,4 +1,14 @@
-# Integracion 0.1.4 - 2026-10-23
+# Instalacion habitual Windows0.1.4 completada - 2026-10-23 19:53UTC
+
+- DONE: fuente validada15ca12106157c9cc54c303791dfa515c892c9c2b aplicada al directorio habitual y EXE0.1.4.0/45056bytes instalado por File.Replace. SHA9f190824e7a6654ae38bab3ba022257022af7f3d6997ebd89abb03767336d4a0; acceso/CMD habitual conservado, sin ejecutar el binario ni iniciar servidor/bot como prueba.
+- Lucas autorizo expresamente pausa de la unica tarea semanal, respaldo/adopcion y restauracion de su habilitacion y horario, con conocimiento de posible ejecucion pendiente. Inspeccion normal fuera del sandbox paso; mutex del panel, tarea Disabled y cero procesos/listener acreditaron exclusion. Finalmente tarea Ready/Enabled=true, XML byte-identico al anterior, mismo calendario y sin nueva ejecucion observada.
+- 42archivos de datos/configuracion/PID/backups identicos antes/despues de instalar y de reactivar. Copias cifradas DPAPI CurrentUser con descifrado/hash verificados, sin conectar SQLite, checkpoint o migracion. EXE anterior y fuentes originales respaldados; rollback sintetico y rollback real controlado comprobados.
+- Primer intento19:48-19:49 fallo en el verificador del instalador: ConvertFrom-Json no admite la clave vacia del paquete raiz de npm sin -AsHashtable. Fuente/EXE se revirtieron, la tarea se restauro y datos siguieron iguales. RED/GREEN sintetico y lock real validaron la correccion; reanudacion19:52-19:53 acepto solo el rollback exacto registrado y dejo fuente/index limpios, sin reescribir historia.
+- Recibos privados ADOPTION_RECEIPT.json y manifests/definiciones en los dos backups de adopcion fechados194850661Z y195214725Z; respaldos necesarios y evidencia retenidos, sin borrar temporales. Detalle publicable: ADOPTION_20261023.md. No copiar secretos, DB, XML privado o rutas personales al repositorio.
+- Codigo productivo y gates no cambiaron respecto del SHAfb58117b314aef56a5a8d92c318ef26989ae117c: gate completo local100% instrumentable y CI40006945072 SUCCESS. Cierre actual solo documental; no repetir suites/CI ni publicacion de codigo. Todos los pedidos procesados de USER_QUEUE DONE; solo bloqueos de plataforma previos ajenos a esta instalacion.
+- Sin procesos de Comics activos ni ejecucion de produccion al cierre de la adopcion; no cerrar procesos ajenos, tocar R02/Defender/VPS o repetir sync/notificaciones. La incidencia antigua de aislamiento conserva consecuencias externas indeterminables; los hashes de esta ventana no las revierten ni certifican retroactivamente.
+
+# Historico anterior a adopcion - integracion 0.1.4 del2026-10-23
 
 - Base local/remota8df19a44 limpia y propietario anterior terminado/sin cargar al iniciar. Integracion en copia temporal independiente; no se modifica el arbol habitual ni su EXE.
 - Delta: timer forzado del bridge captura errores y conserva hijo/reintento; arnes JS/Python general antes de imports y todas las entradas npm aisladas. Fuente/paquete/README0.1.4, fuente C# y apagado semanal/POSIX/cambios recientes del usuario preservados.

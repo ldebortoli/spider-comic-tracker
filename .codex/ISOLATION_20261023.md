@@ -1,7 +1,7 @@
 # Bridge y contencion de pruebas 0.1.4
 
 Base verificada local/remota: 8df19a44025ed4bdd64501c42a526091456f8b85.
-Integracion preparada desde una copia temporal; instalacion habitual separada.
+Integracion preparada en copia temporal y posteriormente adoptada en la instalacion habitual Windows el2026-10-23 a las19:53UTC. Ver ADOPTION_20261023.md.
 
 Fuente publicada por push normal en main: fb58117b314aef56a5a8d92c318ef26989ae117c, SHA remoto verificado. [CI40006945072](https://github.com/ldebortoli/spider-comic-tracker/actions/runs/40006945072) completado SUCCESS para ese SHA: JavaScript, Python y bloque C#/PowerShell/CMD aprobados. POSIX/WinForms remotos opcionales no disparados; ya aprobados localmente. El cierre documental posterior no modifica fuentes y queda excluido por el filtro de rutas del workflow.
 
@@ -33,15 +33,15 @@ Contencion:20probes JS y10Python previos a imports; seis mutaciones con efectos 
 
 Revision de correccion, simplicidad, arquitectura, seguridad y rendimiento sin hallazgos bloqueantes en el delta final. Auditoria de patrones de secretos/rutas personales/correos sobre archivos seleccionados aprobada. No se agregan dependencias ni cambian identidades globales o protecciones.
 
-## EXE preparado y adopcion pendiente
+## EXE preparado y adopcion Windows completada
 
 Staging: SpiderTrackerServerControl.exe,45056bytes,version0.1.4.0.
 SHA256:9f190824e7a6654ae38bab3ba022257022af7f3d6997ebd89abb03767336d4a0.
 Fuente C#:7b209d191a98ecbb701c7b075972deb8aa1e4cf586fc6276aa4f0530654aa4d4.
-Binario compilado directamente a staging; nunca ejecutado ni instalado. Ensayo previo de File.Replace/rollback con binario inerte y cuatro canarios sinteticos conservado.
+Binario compilado directamente a staging, sin ejecutarlo. Instalado por File.Replace a las19:53UTC; backup del EXE anterior verificado. Ensayo previo con cuatro canarios y nuevo ensayo byte-exacto con copias, mas rollback real del primer intento, conservados.
 
-Operacion bloqueada: actualizar el arbol operativo y sustituir bin/SpiderTrackerServerControl.exe. Falta evidencia vigente de exclusion de paneles, servidor, bridge y disparadores durante la ventana. La inspeccion Scheduler anteriormente denegada no se reintenta ni sustituye. Solo con esa precondicion confirmada se revalidan identidad/HEAD y backups de codigo/binario, y se realiza sustitucion atomica con rollback; no iniciar perfil habitual como smoke.
+Bloqueo de adopcion Windows resuelto con autorizacion especifica posterior. Inspeccion normal autorizada fuera del sandbox, mutex y pausa de la unica tarea acreditaron exclusion. Fuente validada y bin/SpiderTrackerServerControl.exe instalados; tarea restaurada Ready/habilitada con XML byte-identico y mismo calendario. 42archivos protegidos identicos antes/despues, incluidos DB/WAL/SHM/config/PID/backups, con copias DPAPI verificadas y sin abrir SQLite o ejecutar el perfil real. No hay escritores/listener al finalizar.
 
-No se leyeron/copiaron DB/WAL/SHM/config reales, enviaron notificaciones, hicieron scraping o cerraron procesos ajenos en esta integracion. El incidente previo conserva efectos externos indeterminables; no se restauro ni reparo nada. Los guards previenen errores accidentales de pruebas; no son un sandbox del SO contra codigo hostil con la misma identidad.
+Durante la preparacion y las pruebas aisladas no se leyeron/copiaron DB/WAL/SHM/config reales, enviaron notificaciones, hicieron scraping o cerraron procesos ajenos. La lectura de bytes, hashes y respaldo cifrado de archivos reales se realizo solamente en la ventana posterior de adopcion autorizada, con escritores detenidos y disparador pausado; no se modificaron/restauraron esos datos ni se abrio SQLite. El incidente previo conserva efectos externos indeterminables; no se restauro ni reparo nada. Los guards previenen errores accidentales de pruebas; no son un sandbox del SO contra codigo hostil con la misma identidad.
 
 Temporales propios de integracion, snapshot exportado, mutaciones y staging permanecen para diagnostico/limpieza recuperable posterior. Conservar evidencia del incidente y backups necesarios; ningun borrado en esta entrega. Cola procesada auditada: todos sus pedidos historicos siguen DONE; bloqueos de plataforma previos conservados.
