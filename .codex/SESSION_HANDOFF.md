@@ -1,3 +1,11 @@
+# Diagnostico del aviso semanal 2026-W44 - 2026-10-28
+
+- DONE, causa confirmada: corrida20/2026-W44 scheduled iniciada15:00:14UTC y pipeline terminado15:06:57UTC (12:00-12:06ART). sync_runs.status=completed; USA34 procesados/6 agregados/25 rechazados/3 pendientes/0 errores y catalogo12 importados/0 errores; backup enviado. Lecturas SQLite con URI mode=ro/PRAGMA query_only, sin cargar fuentes con efectos.
+- Panini registro sala de espera; Universo Marvel7 HTTP404 y1 timeout. Etapa espanola492 productos/103 coincidencias/8 errores y completed_with_warnings. WeeklyShutdown.confirm calcula failed=true por estas incidencias, pero pasa solo weeklyReview a Telegram.sendSummary, por eso el cuerpo muestra Errores0 y omite las incidencias espanolas. No hay weekly_shutdown_receipt; esta corrida no armo apagado24h.
+- Datos USA guardados, sin errores en cola semanal pendientes. La consulta solo pide explicacion; mejora del resumen registradaP2, sin cambios de producto/version0.1.4, sync, Telegram ni scheduler. Aserciones de consistencia reales solo lectura aprobadas; npm run test:shutdown9/9,100% lineas/ramas/funciones de weekly-shutdown.js, copia sintetica y guardas JS/Python aprobadas.
+- Cierre solo documental en main. Autor noreply, Secret Scanning y Push Protection habilitados verificados por lectura; sin cambios de protecciones ni consultas de CI remota. Evidencia sintetica local retenida bajo data/weekly-diagnosis-2026W44-evidence, fuera de Git; no versionar reportes/runtime.
+- Arbol main limpio inicialmente, HEAD7d7df49. Hay actividad SQLite/WAL y un proceso Python del proyecto; el estado sin procesos de la adopcion ya no representa el presente. USER_QUEUE sin pendientes nuevos y todos los procesados con DONE; bloqueos de plataforma previos conservados.
+
 # Instalacion habitual Windows0.1.4 completada - 2026-10-23 19:53UTC
 
 - DONE: fuente validada15ca12106157c9cc54c303791dfa515c892c9c2b aplicada al directorio habitual y EXE0.1.4.0/45056bytes instalado por File.Replace. SHA9f190824e7a6654ae38bab3ba022257022af7f3d6997ebd89abb03767336d4a0; acceso/CMD habitual conservado, sin ejecutar el binario ni iniciar servidor/bot como prueba.
