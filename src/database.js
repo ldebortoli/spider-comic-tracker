@@ -2621,6 +2621,14 @@ class ComicDatabase {
     return changes;
   }
 
+  discardCommentedSpanishSourceProducts(source) {
+    return Number(this.db.prepare(`
+      DELETE FROM spanish_source_queue
+      WHERE source = ? AND title LIKE '-->%'
+        AND NOT EXISTS (SELECT 1 FROM panini_products p WHERE p.source_key = spanish_source_queue.source_key)
+    `).run(source).changes);
+  }
+
   listPendingSpanishSourceProducts(source, limit = 50) {
     return this.db.prepare(`
       SELECT id, source, source_key AS sourceKey, title, product_url AS productUrl, priority

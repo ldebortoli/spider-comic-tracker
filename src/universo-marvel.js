@@ -23,7 +23,7 @@ function fetchBuffer(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         response.resume();
-        reject(new Error(`Fichas Universo Marvel respondió HTTP ${response.statusCode}`));
+        reject(Object.assign(new Error(`Fichas Universo Marvel respondió HTTP ${response.statusCode}`), { statusCode: response.statusCode }));
         return;
       }
       const chunks = [];
@@ -37,8 +37,15 @@ function fetchBuffer(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
 }
 
 async function fetchPage(url) {
-  const buffer = await fetchBuffer(url);
-  return new TextDecoder("windows-1252").decode(buffer);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const buffer = await fetchBuffer(url);
+      return new TextDecoder("windows-1252").decode(buffer);
+    } catch (error) {
+      if (attempt === 3 || (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+    }
+  }
 }
 
 function sourceKey(url) {
@@ -48,7 +55,7 @@ function sourceKey(url) {
 
 function parseDirectory(html, baseUrl = BASE_URL) {
   const entries = [];
-  for (const match of String(html || "").matchAll(/<option\s+value="([^"]+)">([\s\S]*?)<\/option>/gi)) {
+  for (const match of String(html || "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(/<option\s+value="([^"]+)">([\s\S]*?)<\/option>/gi)) {
     const value = decodeHtmlEntities(match[1]).trim();
     if (!value || !/\.html(?:$|[?#])/i.test(value)) continue;
     const title = sanitizeLine(match[2]);
@@ -66,7 +73,7 @@ function parseDirectory(html, baseUrl = BASE_URL) {
 function parseIndexLinks(html, pageUrl, rootStem, priority = 0) {
   const products = [];
   const nestedIndexes = [];
-  for (const match of String(html || "").matchAll(/<a[^>]+href\s*=\s*["']?([^"'\s>]+)[^>]*>([\s\S]*?)<\/a>/gi)) {
+  for (const match of String(html || "").replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(/<a[^>]+href\s*=\s*["']?([^"'\s>]+)[^>]*>([\s\S]*?)<\/a>/gi)) {
     let url;
     try { url = new URL(decodeHtmlEntities(match[1]), pageUrl); } catch { continue; }
     if (url.hostname !== new URL(BASE_URL).hostname || !/\.html$/i.test(url.pathname)) continue;
@@ -149,6 +156,7 @@ function parseUniversoMarvelProduct(html, productUrl, fallbackTitle = "") {
 }
 
 async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch = 50, concurrency = 5, onProgress } = {}) {
+  const discardedUnpublished = db.discardCommentedSpanishSourceProducts("universo_marvel");
   if (db.getState("universo_marvel_matcher_version", "") !== "2") {
     db.requeueSpanishSourceProducts("universo_marvel");
     db.setState("universo_marvel_matcher_version", "2");
@@ -167,6 +175,7 @@ async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch =
   }
   let nextIndex = 0;
   let discoveredFromIndexes = 0;
+  const discoveryErrors = [];
 
   async function discoveryWorker() {
     while (true) {
@@ -178,6 +187,7 @@ async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch =
         db.queueSpanishSourceProducts("universo_marvel", products);
         discoveredFromIndexes += products.length;
       } catch (error) {
+        discoveryErrors.push({ productUrl: selectedIndexes[index].url, message: error.message, stage: "discovery" });
         onProgress?.({ stage: "discovering_universo_marvel", warning: error.message });
       }
     }
@@ -186,7 +196,7 @@ async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch =
   db.setState("universo_marvel_index_cursor", String((cursor + selectedIndexes.length) % Math.max(1, indexes.length)));
 
   const pending = db.listPendingSpanishSourceProducts("universo_marvel", productBatch);
-  const result = { source: "universo_marvel", directoryEntries: directory.length, scannedIndexes: selectedIndexes.length, discoveredFromIndexes, queued: pending.length, processed: 0, matched: 0, pendingMatch: 0, errors: [] };
+  const result = { source: "universo_marvel", discardedUnpublished, directoryEntries: directory.length, scannedIndexes: selectedIndexes.length, discoveredFromIndexes, queued: pending.length, processed: 0, matched: 0, pendingMatch: 0, errors: discoveryErrors };
   let nextProduct = 0;
   async function productWorker() {
     while (true) {
@@ -202,7 +212,7 @@ async function importUniversoMarvelCatalog({ db, indexBatch = 25, productBatch =
         if (processed.status === "matched") result.matched += 1;
         else result.pendingMatch += 1;
       } catch (error) {
-        db.resolveSpanishSourceQueueItem(item.id, /HTTP 404\b/.test(error.message) ? "" : error.message);
+        db.resolveSpanishSourceQueueItem(item.id, error.message);
         result.errors.push({ productUrl: item.productUrl, message: error.message });
       }
       onProgress?.({ stage: "importing_universo_marvel", ...result, errors: [...result.errors] });

@@ -1,6 +1,7 @@
 const { decodeHtmlEntities, normalizeText, sanitizeLine, uniqueStrings } = require("./utils");
 const http = require("node:http");
 const https = require("node:https");
+const { PaniniBrowserSession } = require("./panini-browser");
 
 const DEFAULT_LISTING_URL = "https://www.panini.es/shp_esp_es/comics/marvel.html?skip_default_filters=true";
 const SPANISH_MONTHS = {
@@ -255,7 +256,7 @@ function requestText(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location && redirects > 0) {
         if (/queue-it\.net/i.test(response.headers.location)) {
           response.resume();
-          reject(new Error("Panini activó su sala de espera; el catálogo se reintentará en la próxima ejecución"));
+          reject(Object.assign(new Error("Panini activó su sala de espera; el catálogo se reintentará en la próxima ejecución"), { code: "PANINI_BROWSER_REQUIRED" }));
           return;
         }
         response.resume();
@@ -264,7 +265,9 @@ function requestText(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
       }
       if (response.statusCode < 200 || response.statusCode >= 300) {
         response.resume();
-        reject(new Error(`Panini respondió HTTP ${response.statusCode}`));
+        const error = Object.assign(new Error(`Panini respondió HTTP ${response.statusCode}`), { statusCode: response.statusCode });
+        if (response.statusCode === 403) error.code = "PANINI_BROWSER_REQUIRED";
+        reject(error);
         return;
       }
       response.setEncoding("utf8");
@@ -278,12 +281,18 @@ function requestText(url, { timeoutMs = 45_000, redirects = 5 } = {}) {
   });
 }
 
-async function fetchTextWithRetry(url, { attempts = 4, timeoutMs = 45_000 } = {}) {
+async function fetchTextWithRetry(url, { attempts = 4, timeoutMs = 45_000, browserSession } = {}) {
+  if (browserSession?.active) return browserSession.fetch(url);
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
       return await requestText(url, { timeoutMs });
     } catch (error) {
+      if (error.code === "PANINI_BROWSER_REQUIRED") {
+        if (browserSession) return browserSession.fetch(url);
+        throw error;
+      }
+      if (error.statusCode >= 400 && error.statusCode < 500 && error.statusCode !== 429) throw error;
       lastError = error;
       if (attempt < attempts) await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
     }
@@ -299,17 +308,26 @@ function listingPageUrl(listingUrl, page) {
   return url.toString();
 }
 
-async function importPaniniCatalog({
+async function importPaniniCatalog({ browserSession = new PaniniBrowserSession(), ...options } = {}) {
+  try {
+    return await importPaniniPages({ ...options, browserSession });
+  } finally {
+    await browserSession.close();
+  }
+}
+
+async function importPaniniPages({
   listingUrl = DEFAULT_LISTING_URL,
   knownUrls = new Set(),
   pendingProducts = [],
   full = false,
   concurrency = 4,
   onProduct,
-  onProgress
-} = {}) {
+  onProgress,
+  browserSession
+}) {
   const startedAt = new Date().toISOString();
-  const firstHtml = await fetchTextWithRetry(listingPageUrl(listingUrl, 1));
+  const firstHtml = await fetchTextWithRetry(listingPageUrl(listingUrl, 1), { browserSession });
   const first = parseListingPage(firstHtml, listingUrl);
   const discovered = new Map(first.items.map((item) => [item.productUrl, item]));
   const shouldScanAll = full || knownUrls.size === 0;
@@ -319,7 +337,7 @@ async function importPaniniCatalog({
 
   for (let page = 2; page <= maxPages; page += 1) {
     if (!shouldScanAll && consecutiveKnownPages >= 2) break;
-    const html = await fetchTextWithRetry(listingPageUrl(listingUrl, page));
+    const html = await fetchTextWithRetry(listingPageUrl(listingUrl, page), { browserSession });
     const parsed = parseListingPage(html, listingUrl);
     scannedPages += 1;
     const allKnown = parsed.items.length > 0 && parsed.items.every((item) => knownUrls.has(item.productUrl));
@@ -359,7 +377,7 @@ async function importPaniniCatalog({
       if (index >= queue.length) return;
       const item = queue[index];
       try {
-        const html = await fetchTextWithRetry(item.productUrl);
+        const html = await fetchTextWithRetry(item.productUrl, { browserSession });
         const product = parseProductPage(html, item.productUrl, item.title);
         const result = await onProduct?.(product);
         if (result?.status === "matched") progress.matchedProducts += 1;

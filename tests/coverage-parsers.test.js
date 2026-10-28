@@ -366,6 +366,7 @@ test("Panini HTTP transport follows redirects, surfaces errors and retries failu
     if (mode === "redirect" && url.endsWith("/a")) return { status: 302, headers: { location: "/b" } };
     if (mode === "queue") return { status: 302, headers: { location: "https://queue-it.net/wait" } };
     if (mode === "bad") return { status: 404 };
+    if (mode === "forbidden") return { status: 403 };
     if (mode === "timeout") return { timeout: true };
     if (mode === "response") return { responseError: "stream" };
     if (mode === "retry" && count === 1) return { requestError: "socket" };
@@ -375,6 +376,9 @@ test("Panini HTTP transport follows redirects, surfaces errors and retries failu
   assert.ok(calls[1].endsWith("/b"));
   mode = "queue"; await assert.rejects(panini.fetchTextWithRetry("https://fixture.invalid/a", { attempts: 1 }), /sala de espera/);
   mode = "bad"; await assert.rejects(panini.fetchTextWithRetry("https://fixture.invalid/a", { attempts: 1 }), /HTTP 404/);
+  mode = "forbidden"; const beforeForbidden = count;
+  await assert.rejects(panini.fetchTextWithRetry("https://fixture.invalid/a"), /HTTP 403/);
+  assert.equal(count - beforeForbidden, 1);
   mode = "timeout"; await assert.rejects(panini.fetchTextWithRetry("https://fixture.invalid/a", { attempts: 1, timeoutMs: 1 }), /tiempo/);
   mode = "response"; await assert.rejects(panini.fetchTextWithRetry("https://fixture.invalid/a", { attempts: 1 }), /stream/);
   mode = "retry"; count = 0; assert.equal(await panini.fetchTextWithRetry("https://fixture.invalid/a", { attempts: 2 }), "hello");
@@ -416,6 +420,32 @@ test("Panini import scans incrementally, retries pending products and counts eac
   assert.equal((await panini.importPaniniCatalog({ listingUrl: "" })).queuedProducts, 0);
 });
 
+test("Panini reuses and closes a normal browser session when the direct download requires JavaScript", async (t) => {
+  immediateRetries(t);
+  const calls = fakeHttp(t, () => ({ status: 302, headers: { location: 'https://panini.queue-it.net/wait' } }));
+  const seen = [];
+  let closed = 0;
+  const browserSession = {
+    active: false,
+    fetch: async url => {
+      browserSession.active = true;
+      seen.push(url);
+      return url.includes('/comics/') ? '<a class="product-item-link" href="https://www.panini.es/shp_esp_es/hero.html">Hero</a>' : '<h1><span class="base">Hero</span></h1>';
+    },
+    close: async () => { closed++; }
+  };
+  const result = await panini.importPaniniCatalog({ browserSession, onProduct: () => ({ status: 'matched' }) });
+  assert.equal(result.matchedProducts, 1);
+  assert.equal(result.errors.length, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(seen.length, 2);
+  assert.equal(closed, 1);
+  browserSession.active = false;
+  browserSession.fetch = async () => { throw Error('browser unavailable'); };
+  await assert.rejects(panini.importPaniniCatalog({ browserSession }), /browser unavailable/);
+  assert.equal(closed, 2);
+});
+
 test("Universo parsers filter malformed links, foreign indexes and fallback artwork", () => {
   assert.deepEqual(universo.parseDirectory(), []);
   const dir = universo.parseDirectory('<option value="">blank</option><option value="plain">bad</option><option value="b.html">B</option><option value="a.html">A</option><option value="esp/a.html">Venom</option><option value="esp/a.html">Venom</option>');
@@ -437,7 +467,35 @@ test("Universo parsers filter malformed links, foreign indexes and fallback artw
   assert.match(universo.parseUniversoMarvelProduct("<a onClick=\"MM_openBrWindow('portadas/a.jpg')\"></a><!-- Contenido USA --><li> </td></body>", `${universo.BASE_URL}esp/x.html`).coverImageUrl, /portadas\/a.jpg$/);
 });
 
+test("Universo discovery ignores unpublished anchors inside HTML comments", () => {
+  const html = '<td><!--<a href="esp/not-published.html">-->1</a></td>'
+    + '<td><a href="esp/published.html">2</a></td><!--<a href="root_future.html">future</a>-->';
+  const parsed = universo.parseIndexLinks(html, `${universo.BASE_URL}root.html`, "root");
+  assert.deepEqual(parsed.products.map(item => item.sourceKey), ["um-published"]);
+  assert.deepEqual(parsed.nestedIndexes, []);
+  assert.deepEqual(universo.parseDirectory('<!--<option value="esp/future.html">Future</option>--><option value="esp/live.html">Live</option>').map(item => item.title), ["Live"]);
+});
+
+test("Universo retries transient failures and never retries a definitive missing page", async (t) => {
+  immediateRetries(t);
+  let transient = true;
+  let failure = 0;
+  const calls = fakeHttp(t, () => {
+    failure += 1;
+    if (transient && failure === 1) return { timeout: true };
+    if (!transient) return { status: 404 };
+    return { body: '<title>Recovered</title>' };
+  });
+  assert.match(await universo.fetchPage(`${universo.BASE_URL}esp/recover.html`), /Recovered/);
+  assert.equal(calls.length, 2);
+  transient = false;
+  const before = calls.length;
+  await assert.rejects(universo.fetchPage(`${universo.BASE_URL}esp/missing.html`), /HTTP 404/);
+  assert.equal(calls.length - before, 1);
+});
+
 test("Universo transport handles redirects, windows encoding and all network errors", async (t) => {
+  immediateRetries(t);
   let mode = "redirect";
   fakeHttp(t, (url) => {
     if (mode === "redirect" && url.endsWith("/a")) return { status: 302, headers: { location: "/b" } };
@@ -472,6 +530,7 @@ test("Universo collection traversal deduplicates indexes and caps recursive disc
 });
 
 test("Universo import rotates indexes, preserves pending failures and resolves missing products", async (t) => {
+  immediateRetries(t);
   const states = new Map();
   const queued = [];
   const resolved = [];
@@ -487,6 +546,7 @@ test("Universo import rotates indexes, preserves pending failures and resolves m
   });
   let pending = [{ id: 1, productUrl: `${universo.BASE_URL}esp/matched.html`, title: "matched" }, { id: 2, productUrl: `${universo.BASE_URL}esp/other.html` }, { id: 3, productUrl: `${universo.BASE_URL}esp/missing.html` }, { id: 4, productUrl: `${universo.BASE_URL}esp/error.html` }];
   const db = {
+    discardCommentedSpanishSourceProducts: () => 0,
     getState: (key, fallback) => states.has(key) ? states.get(key) : fallback,
     setState: (key, value) => states.set(key, value),
     requeueSpanishSourceProducts: () => { requeues += 1; },
@@ -503,8 +563,9 @@ test("Universo import rotates indexes, preserves pending failures and resolves m
   assert.equal(result.processed, 2);
   assert.equal(result.matched, 1);
   assert.equal(result.pendingMatch, 1);
-  assert.equal(result.errors.length, 2);
-  assert.equal(resolved.find((p) => p.id === 3).error, "");
+  assert.equal(result.errors.length, 3);
+  assert.equal(result.discardedUnpublished, 0);
+  assert.match(resolved.find((p) => p.id === 3).error, /HTTP 404/);
   assert.match(resolved.find((p) => p.id === 4).error, /HTTP 503/);
   assert.ok(progress.some((p) => p.warning));
   assert.equal(requeues, 1);

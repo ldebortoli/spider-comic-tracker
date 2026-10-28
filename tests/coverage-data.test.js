@@ -218,6 +218,25 @@ test('database Spanish source queue resumes confirmed work without losing retrie
   assert.equal(db.queueSpanishSourceProducts('test',[{sourceKey:'ignored'}]),0);db.db.exec('DROP TRIGGER ignore_source_insert;');
 });
 
+test('database discards only legacy commented links without products and permits later publication', (t) => {
+  const {db}=fixture(t);
+  db.queueSpanishSourceProducts('universo_marvel',[
+    {sourceKey:'um-future',title:'-->1',productUrl:'https://example.test/future'},
+    {sourceKey:'um-future2',title:'-->2',productUrl:'https://example.test/future2'},
+    {sourceKey:'um-kept',title:'-->3',productUrl:'https://example.test/kept'},
+    {sourceKey:'um-live',title:'4',productUrl:'https://example.test/live'}
+  ]);
+  db.resolveSpanishSourceQueueItem(db.listPendingSpanishSourceProducts('universo_marvel')[0].id);
+  db.queueSpanishSourceProducts('other',[{sourceKey:'other',title:'-->5',productUrl:'https://example.test/other'}]);
+  db.processPaniniProduct({sourceKey:'um-kept',source:'universo_marvel',title:'Real product',productUrl:'https://example.test/kept'});
+  assert.equal(db.discardCommentedSpanishSourceProducts('universo_marvel'),2);
+  assert.equal(db.discardCommentedSpanishSourceProducts('universo_marvel'),0);
+  assert.equal(db.getSpanishSourceQueueStats('other').total,1);
+  assert.deepEqual(db.listPendingSpanishSourceProducts('universo_marvel').map(p=>p.sourceKey),['um-kept','um-live']);
+  db.queueSpanishSourceProducts('universo_marvel',[{sourceKey:'um-future',title:'1',productUrl:'https://example.test/future'}]);
+  assert.ok(db.listPendingSpanishSourceProducts('universo_marvel').some(p=>p.sourceKey==='um-future'));
+});
+
 test('database Spanish editions validate edits and missing covers, filter complete linked metadata', (t) => {
   const {db}=fixture(t);
   db.upsertCatalogIssues([issue(1)]); const id=db.getCatalogIssueByFandomPageId(1).id;

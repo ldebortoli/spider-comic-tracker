@@ -262,7 +262,20 @@ validacion inicial, limites y rollback en
 [el informe del lote](.codex/SECURITY_REVIEW_20261023.md).
 
 
-## Version actual y validacion (version **0.1.5**)
+## Version actual y validacion (version **0.1.6**)
+
+Panini usa primero HTTP y, cuando requiere JavaScript o responde403, abre una
+sesion anonima temporal en Microsoft Edge instalado mediante playwright-core1.64.1.
+No descarga navegadores, reutiliza perfiles personales ni desactiva el sandbox.
+La sesion se comparte durante una importacion y se cierra al terminar, incluso
+si una descarga falla. Una sala de espera o desafio que impida cargar las fichas
+sigue siendo una incidencia; no se resuelve ni se elude automaticamente.
+
+Universo Marvel ignora enlaces desactivados en comentarios HTML y retira de su
+cola esas referencias antiguas solo cuando no hay un producto importado asociado.
+Si se publican posteriormente, se descubren de nuevo. Las descargas transitorias
+se reintentan hasta tres veces; un404 real permanece como error, y los errores de
+descubrimiento de indices tambien se incluyen en el resumen.
 
 Instalar dependencias de desarrollo con `npm ci` (Node 24.15 o posterior) y
 `python -m pip install -r requirements-dev.txt`.
@@ -271,7 +284,7 @@ Instalar dependencias de desarrollo con `npm ci` (Node 24.15 o posterior) y
   transportes simulados; no requiere Telegram, configuracion o datos habituales.
 - `npm run test:coverage`: gate local completo. Exige 100% de cada metrica que
   expone cada motor y rechaza fuentes de produccion sin instrumentar.
-- `npm run test:coverage:node`:23 fuentes JS de src/, public/ y scripts/, incluido
+- `npm run test:coverage:node`:24 fuentes JS de src/, public/ y scripts/, incluido
   app.js completo bajo JSDOM. Node V8 mide lineas, ramas y funciones; el gate
   inspecciona los contadores LCOV sin redondear y verifica el inventario completo.
 - `npm run test:coverage:native`: panel C# y diez scripts PowerShell, mas pruebas
