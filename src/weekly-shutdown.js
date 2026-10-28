@@ -20,7 +20,9 @@ class WeeklyShutdown {
     const [weekYear, weekNumber] = completed.weekKey.split("-W").map(Number);
     const payload = await telegram.sendSummary({
       ...completed.weeklyReview, weekYear, weekNumber,
-      triggerSource: completed.triggerSource, failed: !complete
+      triggerSource: completed.triggerSource,
+      failed: completed.status !== "completed", hasWarnings: !complete,
+      catalogUpdate: completed.catalogUpdate, paniniUpdate: completed.paniniUpdate
     });
     if (!complete || payload?.ok !== true || !payload.result?.message_id || !payload.result.chat?.id) return;
     const confirmedAt = this.now();

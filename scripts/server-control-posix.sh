@@ -5,7 +5,7 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DATA_DIR="$PROJECT_ROOT/data"
 PID_FILE="$DATA_DIR/server.pid"
-URL="http://localhost:8787"
+URL="http://localhost:${PORT:-8787}"
 
 server_pid() {
   if [[ -f "$PID_FILE" ]]; then
@@ -44,7 +44,7 @@ start_server() {
 wait_for_server() {
   local attempt
   for ((attempt = 0; attempt < 40; attempt += 1)); do
-    if (: > /dev/tcp/127.0.0.1/8787) >/dev/null 2>&1; then
+    if (: > /dev/tcp/127.0.0.1/"${PORT:-8787}") >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.25

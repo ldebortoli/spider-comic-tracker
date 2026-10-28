@@ -1171,7 +1171,8 @@ class ComicTrackerService {
         catalogUpdate: {
           importedComics: catalogUpdate.importedComics || 0,
           existingSkipped: catalogUpdate.existingSkipped || 0,
-          errors: catalogUpdate.errors?.length || 0
+          errors: catalogUpdate.errors?.length || 0,
+          errorDetails: catalogUpdate.errors || []
         },
         paniniUpdate: {
           processedProducts: paniniUpdate.processedProducts || 0,
@@ -1180,7 +1181,9 @@ class ComicTrackerService {
           pendingMatch: paniniUpdate.pendingMatch || 0,
           errors: paniniUpdate.errors?.length || 0,
           status: paniniUpdate.status || "completed",
-          errorMessage: paniniUpdate.errorMessage || ""
+          errorMessage: paniniUpdate.errorMessage || "",
+          officialError: paniniUpdate.officialError || "",
+          errorDetails: paniniUpdate.errors || []
         }
       };
       this.saveWeeklyUpdateStatus(completed);

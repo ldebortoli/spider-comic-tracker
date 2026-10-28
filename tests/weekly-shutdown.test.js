@@ -113,6 +113,98 @@ test("restart retains the deadline; unsuccessful shutdown leaves a retryable rec
   assert.equal(f.stops(), 1);
 });
 
+test("the W44 partial-source incident reports the Spanish causes without failing the USA review", async () => {
+  const { ComicTrackerService } = require("../src/service");
+  const { TelegramBridge } = require("../src/telegram");
+  const f = fixture();
+  const service = new ComicTrackerService({ db: f.service.db, config: {} });
+  service.performSync = async () => ({ processed: 34, added: 6, rejected: 25, pendingReview: 3, errors: 0 });
+  service.performCatalogImport = async () => ({ importedComics: 12, errors: [] });
+  const errors = [
+    ...Array.from({ length: 7 }, (_, index) => ({ productUrl: `https://example.test/${index}`, message: "Fichas Universo Marvel respondió HTTP 404" })),
+    { productUrl: "https://example.test/timeout", message: "Fichas Universo Marvel agotó el tiempo de espera" }
+  ];
+  service.performPaniniImport = async () => ({
+    status: "completed_with_warnings", processedProducts: 492, matchedProducts: 103,
+    officialError: "Panini activó su sala de espera", errors
+  });
+  const telegram = new TelegramBridge({ config: { botToken: "synthetic", summaryChatId: "fixture" }, service });
+  const messages = [];
+  telegram.call = async (method, params) => {
+    assert.equal(method, "sendMessage");
+    messages.push(params.text);
+    return { ok: true, result: { message_id: 44, chat: { id: "fixture" } } };
+  };
+  service.attachTelegram(telegram);
+  const result = await service.performWeeklyUpdate({ triggerSource: "test", weekYear: 2026, weekNumber: 44,
+    reviewWeeks: [{ weekYear: 2026, weekNumber: 44, weekKey: "2026-W44" }] });
+  assert.equal(messages.length, 1);
+  const text = messages[0];
+  assert.equal(text.split("\n")[0], "Revisión semanal finalizada con incidencias");
+  assert.match(text, /Procesados: 34/);
+  assert.match(text, /Agregados: 6/);
+  assert.match(text, /Errores en cómics USA: 0/);
+  assert.match(text, /Errores en catálogo histórico: 0/);
+  assert.match(text, /Errores en ediciones españolas: 8/);
+  assert.match(text, /Panini: Panini activó su sala de espera/);
+  assert.match(text, /7 × Fichas Universo Marvel respondió HTTP 404/);
+  assert.match(text, /1 × Fichas Universo Marvel agotó el tiempo de espera/);
+  assert.ok(text.length <= 4096);
+  assert.deepEqual(result.paniniUpdate.errorDetails, errors);
+  assert.equal(result.weeklyReview.errors, 0);
+  assert.equal(result.status, "completed");
+  assert.equal(f.state.has("weekly_shutdown_receipt"), false);
+});
+
+test("completed runs with incidents remain distinct from fatal runs and never arm shutdown", async () => {
+  for (const mutate of [
+    f => { f.completed.weeklyReview.errors = 1; },
+    f => { f.completed.weeklyReview.backupFailed = true; },
+    f => { f.completed.catalogUpdate.errors = 1; },
+    f => { f.completed.paniniUpdate.errors = 1; },
+    f => { f.completed.paniniUpdate.status = "failed"; },
+    f => { f.completed.paniniUpdate.status = "completed_with_warnings"; },
+    f => { f.completed.status = "failed"; }
+  ]) {
+    const f = fixture();
+    mutate(f);
+    let summary;
+    f.service.telegram.sendSummary = async value => { summary = value; return { ok: true, result: { message_id: 1, chat: { id: "fixture" } } }; };
+    await f.watcher.confirm(f.completed);
+    assert.equal(summary.failed, f.completed.status === "failed");
+    assert.equal(summary.hasWarnings, true);
+    assert.equal(summary.catalogUpdate, f.completed.catalogUpdate);
+    assert.equal(summary.paniniUpdate, f.completed.paniniUpdate);
+    assert.equal(f.state.has("weekly_shutdown_receipt"), false);
+  }
+});
+
+test("catalog incidents and an unavailable Spanish importer retain their causes in the final summary", async () => {
+  const { ComicTrackerService } = require("../src/service");
+  const { TelegramBridge } = require("../src/telegram");
+  const f = fixture();
+  const service = new ComicTrackerService({ db: f.service.db, config: {} });
+  service.performSync = async () => ({ errors: 0 });
+  service.performCatalogImport = async () => ({ errors: [{ message: "synthetic catalog failure" }] });
+  service.performPaniniImport = async () => { throw Error("synthetic Spanish source unavailable"); };
+  const telegram = new TelegramBridge({ config: { botToken: "synthetic", summaryChatId: "fixture" }, service });
+  let text;
+  telegram.call = async (method, params) => {
+    text = params.text;
+    return { ok: true, result: { message_id: 44, chat: { id: "fixture" } } };
+  };
+  service.attachTelegram(telegram);
+  const result = await service.performWeeklyUpdate({ triggerSource: "test", weekYear: 2026, weekNumber: 44,
+    reviewWeeks: [{ weekYear: 2026, weekNumber: 44, weekKey: "2026-W44" }] });
+  assert.match(text, /^Revisión semanal finalizada con incidencias/);
+  assert.match(text, /Errores en catálogo histórico: 1/);
+  assert.match(text, /synthetic catalog failure/);
+  assert.match(text, /Errores en ediciones españolas: 1/);
+  assert.match(text, /synthetic Spanish source unavailable/);
+  assert.equal(result.paniniUpdate.status, "failed");
+  assert.equal(f.state.has("weekly_shutdown_receipt"), false);
+});
+
 test("the weekly pipeline sends one final summary and the recurring check closes HTTP and bot", async () => {
   const { ComicDatabase } = require("../src/database");
   const { ComicTrackerService } = require("../src/service");
@@ -181,7 +273,9 @@ test("a failed backup prevents arming even when the remaining weekly work comple
   service.performCatalogImport = async () => ({ errors: [] });
   service.performPaniniImport = async () => ({ status: "completed", errors: [] });
   service.attachTelegram({ canSendSummary: () => true, sendSummary: async summary => {
-    assert.equal(summary.failed, true);
+    assert.equal(summary.failed, false);
+    assert.equal(summary.hasWarnings, true);
+    assert.equal(summary.backupFailed, true);
     return { ok: true, result: { message_id: 5, chat: { id: -5 } } };
   } });
   const result = await service.performWeeklyUpdate({ triggerSource: "test", weekYear: 2026, weekNumber: 43 });
@@ -206,6 +300,9 @@ test("the delivered version matches release documentation", () => {
   const fs = require("node:fs");
   const path = require("node:path");
   const { version } = require("../package.json");
+  const lock = require("../package-lock.json");
   const readme = fs.readFileSync(path.join(__dirname, "../README.md"), "utf8");
   assert.ok(readme.includes(`version **${version}**`));
+  assert.equal(lock.version, version);
+  assert.equal(lock.packages[""].version, version);
 });

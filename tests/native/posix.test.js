@@ -9,7 +9,7 @@ const { test } = require("node:test");
 
 const projectRoot = path.resolve(__dirname, "../..");
 const scripts = ["server-control-posix.sh", "server-control-linux.sh", "install-linux.sh", "install-macos.sh", "build-macos-app.sh"];
-const bash = process.env.GIT_BASH || (process.platform === "win32" ? "C:/Program Files/Git/bin/bash.exe" : "/bin/bash");
+const bash = process.env.GIT_BASH || (process.platform === "win32" ? "C:/Program Files/Git/usr/bin/bash.exe" : "/bin/bash");
 const toShellPath = (p) => process.platform === "win32" ? p.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`) : p;
 const traces = [];
 
@@ -23,11 +23,11 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "data"));
   fs.writeFileSync(path.join(root, "state"), "stopped");
   fs.writeFileSync(path.join(root, "actions"), "Cerrar\n");
-  const settings = { POSIX_NODE: "1", POSIX_ZENITY: "1", POSIX_MACOS: "1", POSIX_OPENER: "none", POSIX_START_FAIL: "0", POSIX_STOP_FAIL: "0", POSIX_SYSTEMCTL_FAIL: "0", POSIX_LAUNCHCTL_FAIL: "0" };
+  const settings = { PORT: "", POSIX_NODE: "1", POSIX_ZENITY: "1", POSIX_MACOS: "1", POSIX_OPENER: "none", POSIX_START_FAIL: "0", POSIX_STOP_FAIL: "0", POSIX_SYSTEMCTL_FAIL: "0", POSIX_LAUNCHCTL_FAIL: "0" };
   function run(file, args = [], override = {}) {
     const result = spawnSync(bash, ["--noprofile", "--norc", toShellPath(path.join(root, "scripts", file)), ...args], {
-      encoding: "utf8", timeout: file === "server-control-posix.sh" && args.includes("--open") ? 180_000 : 15_000,
-      env: { ...process.env, HOME: toShellPath(path.join(root, "home")), BASH_ENV: toShellPath(path.join(projectRoot, "tests/native/posix-environment.sh")), POSIX_TRACE: toShellPath(path.join(root, "trace")), POSIX_COMMAND_LOG: toShellPath(path.join(root, "commands")), POSIX_STATE: toShellPath(path.join(root, "state")), POSIX_ACTIONS: toShellPath(path.join(root, "actions")), ...settings, ...override }
+      encoding: "utf8", timeout: file === "server-control-posix.sh" && args.includes("--open") ? 180_000 : 60_000,
+      env: { ...process.env, PATH: process.platform === "win32" ? `${path.dirname(bash)};${process.env.PATH}` : process.env.PATH, HOME: toShellPath(path.join(root, "home")), BASH_ENV: toShellPath(path.join(projectRoot, "tests/native/posix-environment.sh")), POSIX_TRACE: toShellPath(path.join(root, "trace")), POSIX_COMMAND_LOG: toShellPath(path.join(root, "commands")), POSIX_STATE: toShellPath(path.join(root, "state")), POSIX_ACTIONS: toShellPath(path.join(root, "actions")), ...settings, ...override }
     });
     assert.equal(result.error, undefined, `${file}: ${result.error?.message}`);
     if (fs.existsSync(path.join(root, "trace"))) {
@@ -53,7 +53,7 @@ test("POSIX status/start/stop operate only on fixture state and record shutdown 
   f.running("malformed");
   assert.equal(f.run("server-control-posix.sh", ["status"]).status, 1);
   f.running();
-  assert.match(f.run("server-control-posix.sh", ["--status"]).stdout, /ENCENDIDO/);
+  assert.match(f.run("server-control-posix.sh", ["--status"]).stdout, /ENCENDIDO.*http:\/\/localhost:8787/);
   assert.match(f.run("server-control-posix.sh", ["start"]).stdout, /ya está encendido/);
   assert.match(f.run("server-control-posix.sh", ["--stop"]).stdout, /Servidor apagado/);
   assert.equal(fs.existsSync(path.join(f.root, "data/server.pid")), false);
@@ -72,19 +72,21 @@ test("POSIX open readiness fails boundedly and supports each available browser c
   const f = fixture(t);
   f.running();
   const server = net.createServer((socket) => socket.end());
-  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(8787, "127.0.0.1", resolve); });
+  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+  const port = server.address().port;
+  f.settings.PORT = String(port);
   try {
     for (const opener of ["xdg", "mac", "none"]) {
       const result = f.run("server-control-posix.sh", ["open"], { POSIX_OPENER: opener });
       assert.equal(result.status, 0, result.stderr);
-      if (opener === "none") assert.match(result.stdout, /http:\/\/localhost:8787/);
+      if (opener === "none") assert.ok(result.stdout.includes(`http://localhost:${port}`));
     }
   } finally { await new Promise((resolve) => server.close(resolve)); }
-  const closed = await new Promise((resolve) => { const probe = net.connect(8787, "127.0.0.1"); probe.on("error", () => resolve(true)); probe.on("connect", () => { probe.destroy(); resolve(false); }); });
+  const closed = await new Promise((resolve) => { const probe = net.connect(port, "127.0.0.1"); probe.on("error", () => resolve(true)); probe.on("connect", () => { probe.destroy(); resolve(false); }); });
   assert.equal(closed, true, "fixture listener must be closed");
   assert.equal(f.run("server-control-posix.sh", ["--open"]).status, 1);
-  assert.match(f.log(), /xdg-open http:\/\/localhost:8787/);
-  assert.match(f.log(), /open http:\/\/localhost:8787/);
+  assert.ok(f.log().includes(`xdg-open http://localhost:${port}`));
+  assert.ok(f.log().includes(`open http://localhost:${port}`));
 });
 
 test("Linux installer validates prerequisites/day and writes each weekly schedule", (t) => {

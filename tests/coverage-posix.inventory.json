@@ -762,7 +762,7 @@
       ]
     },
     "server-control-posix.sh": {
-      "sha256": "457f3df5d3ff1e2c0997fd749f780bd1873850d90c3144b85967ae112ecb8443",
+      "sha256": "f65a54a900edc75ccf3c1d2c2840e5a329a9604f29af25110ca8dc9d49abdeb6",
       "commands": [
         {
           "line": 2,
@@ -802,7 +802,7 @@
         },
         {
           "line": 8,
-          "command": "URL=\"http://localhost:8787\""
+          "command": "URL=\"http://localhost:${PORT:-8787}\""
         },
         {
           "line": 11,
@@ -918,7 +918,7 @@
         },
         {
           "line": 47,
-          "command": ": > /dev/tcp/127.0.0.1/8787"
+          "command": ": > /dev/tcp/127.0.0.1/\"${PORT:-8787}\""
         },
         {
           "line": 48,

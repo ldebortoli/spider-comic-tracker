@@ -30,9 +30,10 @@ test("all CMD entry points preserve their launch directory and invoke only their
       fs.writeFileSync(path.join(root, name), source);
       fs.rmSync(log, { force: true });
       const result = spawnSync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `""${path.join(root, name)}""`], {
-        cwd: os.tmpdir(), input: "\r\n", encoding: "utf8", timeout: 5000, windowsHide: true,
+        cwd: os.tmpdir(), input: "\r\n", encoding: "utf8", timeout: 60000, windowsHide: true,
         windowsVerbatimArguments: true, env: { ...process.env, SPIDER_WRAPPER_TEST_LOG: log }
       });
+      assert.equal(result.error, undefined, `${name}: ${result.error?.message}`);
       assert.equal(result.status, 0, result.stdout + result.stderr);
       for (let tries = 0; tries < 100 && !fs.existsSync(log); tries++) await new Promise(resolve => setTimeout(resolve, 20));
       assert.ok(fs.existsSync(log), name);

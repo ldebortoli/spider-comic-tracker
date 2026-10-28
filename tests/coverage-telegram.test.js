@@ -238,6 +238,33 @@ test("review, summary, backup and connection messages retain their metadata and 
   assert.equal(result.firstName, "");
 });
 
+test("weekly incident summaries bound grouped source details and keep fatal errors explicit", async () => {
+  const h = harness();
+  const bridge = h.create({ botToken: "fixture", summaryChatId: "summary" });
+  await bridge.sendSummary({
+    weekYear: 2026, weekNumber: 44, errors: 0, hasWarnings: true, backupFailed: true,
+    catalogUpdate: { errors: 6, errorDetails: [
+      { message: "shared cause" }, { message: "shared cause" }, { message: "x".repeat(250) },
+      {}, { message: "fourth cause" }, { message: "fifth cause" }
+    ] },
+    paniniUpdate: { errors: 0 }
+  });
+  const text = h.calls.at(-1)[2].body.get("text");
+  assert.match(text, /^Revisión semanal finalizada con incidencias/);
+  assert.match(text, /Errores en catálogo histórico: 6/);
+  assert.match(text, /2 × shared cause/);
+  assert.match(text, /1 × Error desconocido/);
+  assert.match(text, /2 motivos adicionales/);
+  assert.doesNotMatch(text, /fourth cause|fifth cause/);
+  assert.ok(!text.includes("x".repeat(181)));
+  assert.match(text, /Backup: no se pudo completar/);
+  assert.match(text, /Apagado automático: no activado por estas incidencias/);
+  await bridge.sendSummary({ failed: true, hasWarnings: true, errorMessage: "synthetic fatal error" });
+  const failure = h.calls.at(-1)[2].body.get("text");
+  assert.match(failure, /^Falló la revisión semanal/);
+  assert.match(failure, /Error: synthetic fatal error/);
+});
+
 test("commands and review callbacks enforce identity and handle stale reviews and Telegram edit failures", async () => {
   const h = harness();
   let dashboard = {};

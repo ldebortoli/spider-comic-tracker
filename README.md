@@ -112,13 +112,18 @@ Comandos disponibles: `/debug` para estado operativo y `/log` para devolver el J
 El icono del panel y del acceso directo se guarda en `assets/spider-tracker-icon.ico`.
 
 Los mismos controles estan disponibles desde una terminal con `npm run server:start`, `npm run server:stop` y `npm run server:status`.
+El control POSIX respeta `PORT` exportado al proceso, igual que Node; por defecto conserva el puerto 8787.
 
 La actualización automática semanal ejecuta tres pasos secuenciales: recupera en orden todas las semanas USA posteriores a la ultima revisión completada hasta la actual, busca nuevos cómics en las listas históricas y después revisa novedades y pendientes de las fuentes españolas. `INSTALAR ACTUALIZACION SEMANAL.cmd` registra la tarea de Windows para que el servidor se inicie a la hora configurada aunque estuviera apagado; `QUITAR ACTUALIZACION SEMANAL.cmd` la elimina.
 
 El horario tambien se puede activar, desactivar o modificar desde **Configuración**. Telegram no ejecuta el calendario: la tarea del sistema solo despierta el servidor y una marca semanal persistente evita corridas duplicadas.
 
 Desde la version **0.1.2**, el resumen semanal se envia al terminar los tres pasos,
-con todas las semanas recuperadas incluidas. Solo un flujo sin errores y un recibo
+con todas las semanas recuperadas incluidas. Desde la version **0.1.5**, distingue
+una revision finalizada con incidencias de un fallo fatal e informa por separado
+los errores USA, del catalogo historico y de las ediciones espanolas, incluyendo
+la sala de espera de Panini y los motivos de Universo Marvel agrupados por cantidad.
+Solo un flujo sin errores ni advertencias y un recibo
 confirmado de Telegram (`ok`, chat y mensaje) habilitan el apagado. El recibo se
 persiste en SQLite como `weekly_shutdown_receipt`; no se infiere a partir de una
 corrida marcada como completada ni de mensajes historicos sin recibo.
@@ -257,7 +262,7 @@ validacion inicial, limites y rollback en
 [el informe del lote](.codex/SECURITY_REVIEW_20261023.md).
 
 
-## Version actual y validacion (version **0.1.4**)
+## Version actual y validacion (version **0.1.5**)
 
 Instalar dependencias de desarrollo con `npm ci` (Node 24.15 o posterior) y
 `python -m pip install -r requirements-dev.txt`.

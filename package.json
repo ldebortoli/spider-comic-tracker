@@ -1,6 +1,6 @@
 {
   "name": "analizador-de-comics",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Tracker local de comics de Spider-Man y lineas relacionadas, con SQLite, UI y revision por Telegram.",
   "main": "src/server.js",
   "scripts": {

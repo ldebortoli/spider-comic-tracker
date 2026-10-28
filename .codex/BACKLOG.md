@@ -1,6 +1,6 @@
 # TODO
 
-- P2: aclarar el resumen Telegram semanal cuando USA termina sin errores y las fuentes espanolas tienen advertencias: mostrar el motivo y los errores por etapa, sin presentar el contador USA como total del pipeline. Hallazgo del diagnostico 2026-W44; correccion de producto no solicitada en esta consulta.
+- P2: investigar la latencia de /api/system/metrics con datos locales grandes: se observo timeout4s y el muestreo recorre data/ de forma sincrona. Causa/perfil pendientes; para operar se verifico cURL y dashboard sin esa consulta. No bloquea la correccion del resumen.
 - [BLOCKED 2026-10-23] Adopcion Linux timer: host desconocido; no desplegar. Cierre nativo Linux/macOS y compilacion AppleScript requieren esos entornos.
 
 # IN PROGRESS
@@ -9,6 +9,7 @@ No hay tareas en curso.
 
 # DONE
 
+- [2026-10-28] Corregir resumen semanal0.1.5: diferencia incidencias de fallo fatal, muestra los errores por etapa y conserva causas Panini/Universo Marvel y gate de apagado. RED/GREEN y gate completo100% de todos los motores instrumentables; scripts POSIX/pruebas aislados por PORT efimero y runtime Bash directo, presupuestos CMD/Bash acotados sin relajar asserts/cobertura. Activado en Node24184/bot22176 con estado semanal/sync20/config preservados, sin repetir sync ni enviar Telegram de prueba. package/lock/README sincronizados y memoriaD-020; cierre main, sin CI remota monitoreada.
 - [2026-10-28] Diagnosticar el aviso semanal2026-W44 con Errores0: sync20/USA completo34/6/25/3/0 y catalogo12 importados/0 errores; Panini sala de espera y Universo Marvel7 HTTP404/1 timeout. El titulo compara todas las etapas pero el cuerpo solo muestra errores USA; no se armo apagado24h. SQLite solo lectura y aserciones de consistencia aprobadas; npm run test:shutdown9/9 y100% lineas/ramas/funciones en copia sintetica. D-019; mejora de productoP2, sin modificar aplicacion/version/datos, repetir sync o enviar Telegram. Cierre documental en main, sin monitorear CI remota.
 - [2026-10-23] DONE: adopcion habitual Windows0.1.4 completada19:53UTC con autorizacion especifica de Lucas para pausar/restaurar solo la tarea semanal. Fuente validada15ca121 y EXE0.1.4.0/45056bytes/SHA9f190824e7a6654ae38bab3ba022257022af7f3d6997ebd89abb03767336d4a0 instalados; tarea Ready/habilitada, XML byte-identico y calendario original. 42archivos protegidos identicos antes/despues, incluso tras reactivar; backups cifrados DPAPI verificados. Primer intento hizo rollback real correcto por lectura JSON del instalador; corregido/reproducido antes de retomar. Sin ejecucion de produccion ni procesos cerrados, sin restaurar datos o cambiar otras tareas. Ver ADOPTION_20261023.md; limites nativos Linux/macOS independientes conservados.
 

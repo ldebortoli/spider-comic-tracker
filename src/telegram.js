@@ -336,24 +336,41 @@ class TelegramBridge {
   }
 
   async sendSummary(summary) {
-    const statusLine = summary.failed ? "Falló la revisión semanal" : "Revisión semanal finalizada";
+    const statusLine = summary.failed ? "Falló la revisión semanal"
+      : summary.hasWarnings ? "Revisión semanal finalizada con incidencias" : "Revisión semanal finalizada";
     const chunks = [
       statusLine,
       "",
       `Semana: ${summary.weekYear}-W${String(summary.weekNumber).padStart(2, "0")}`,
       `Origen: ${summary.triggerSource}`,
+      "Cómics USA",
       `Procesados: ${summary.processed}`,
       `Agregados: ${summary.added}`,
       `Rechazados: ${summary.rejected}`,
       `Pendientes: ${summary.pendingReview}`,
       `Reintentos: ${summary.retried || 0}`,
       `Recuperados: ${summary.retryRecovered || 0}`,
-      `Errores: ${summary.errors}`
+      `Errores en cómics USA: ${summary.errors}`
     ];
 
     if (summary.failed && summary.errorMessage) {
       chunks.push("", `Error: ${summary.errorMessage}`);
     }
+
+    for (const [label, stage] of [["catálogo histórico", summary.catalogUpdate], ["ediciones españolas", summary.paniniUpdate]]) {
+      if (!stage) continue;
+      chunks.push("", `Errores en ${label}: ${stage.errors}`);
+      if (stage.officialError) chunks.push(`Panini: ${String(stage.officialError).slice(0, 220)}`);
+      const reasons = new Map();
+      for (const detail of stage.errorDetails || []) {
+        const message = String(detail.message || "Error desconocido");
+        reasons.set(message, (reasons.get(message) || 0) + 1);
+      }
+      for (const [message, count] of [...reasons].slice(0, 3)) chunks.push(`- ${count} × ${message.slice(0, 180)}`);
+      if (reasons.size > 3) chunks.push(`- ${reasons.size - 3} motivos adicionales.`);
+    }
+    if (summary.backupFailed) chunks.push("", "Backup: no se pudo completar.");
+    if (summary.hasWarnings) chunks.push("", "Apagado automático: no activado por estas incidencias.");
 
     if (summary.addedTitles?.length) {
       chunks.push("", `Agregados: ${summary.addedTitles.slice(0, 8).join(", ")}`);
