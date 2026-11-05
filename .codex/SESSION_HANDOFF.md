@@ -1,3 +1,9 @@
+# Correspondencias W45 revisadas - 2026-11-05
+
+- DONE: revisadas las11fichas pendientes del recibo source-review-017;48originales contrastados con11.498issues locales,0candidatos/0vinculos creados. Todas siguen pending_match: sus originales exactos faltan en el catalogo. No confundir nombres parecidos ni inferir ausencia de personajes seguidos. Informe publicable CORRESPONDENCIAS_W45_20261105.md con tabla11/11 y fuentes oficiales; D-023. Main68a0a90 limpio al iniciar; esta entrega solo documental no incrementa0.1.7.
+- Validacion privada reproducible data/correspondence-review-20261105/audit.py/audit-receipt.json, inventario exacto cohort.json; SQLite mode=ro/query_only/transaccion/total_changes0. No cambios de datos, notas, compras, fuentes productivas, interfaz, procesos, configuracion, scheduler, Telegram o apagado. No repetir la reparacion de45; su recibo anterior sigue confirmado.
+- USER_QUEUE sin nuevos pendientes ni procesados incompletos. Revision completada dentro del alcance; no queda ninguna vinculacion ejecutable sin originales correctos. SeguimientoP2 del matcher: reconoce Wolverine como subcadena de The Last Wolverine, sin generar vinculos en este cohorte. Bloqueos externos/plataforma previos conservados. Falta publicar este cierre documental; no observar CI remota.
+
 # Revision W45 v0.1.7 publicada y activa - 2026-11-05
 
 - DONE: fuente validada/activa/publicada en origin/main3ea83acdea78c53e9176fc75f8a1fa9ee46711de, SHA remoto exacto verificado; sigue solo este recibo documental. Main20d6862 limpio al iniciar. Reintentos del navegador ahora cubren timeout/red/HTTP429/5xx hasta3intentos y causa segura;404/403/certificados siguen errores definitivos. Version package/lock/README0.1.7. No cambios en public/ (5archivos identicos), launcher nativo, scheduler, configuracion o criterio de apagado.
