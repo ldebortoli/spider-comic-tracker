@@ -262,7 +262,14 @@ validacion inicial, limites y rollback en
 [el informe del lote](.codex/SECURITY_REVIEW_20261023.md).
 
 
-## Version actual y validacion (version **0.1.6**)
+## Version actual y validacion (version **0.1.7**)
+
+Panini reintenta hasta tres veces las lecturas del navegador ante tiempos de espera,
+cortes transitorios de conexión y HTTP 429/5xx. Cada intento usa una página nueva
+dentro de la sesión anónima de la importación y cierra la página anterior. Los
+errores HTTP definitivos y los problemas de acceso siguen visibles, con una causa
+resumida que no expone detalles privados. Los enlaces externos que realmente
+devuelven 404 permanecen pendientes de reparación en la fuente.
 
 Panini usa primero HTTP y, cuando requiere JavaScript o responde403, abre una
 sesion anonima temporal en Microsoft Edge instalado mediante playwright-core1.64.1.

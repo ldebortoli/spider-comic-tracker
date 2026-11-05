@@ -1,11 +1,12 @@
 # TODO
 
+- P2 [BLOCKED: el indice publicado https://fichas.universomarvel.com/mletpbhomhorhomgigp_v1.html responde404real al2026-11-05; no hay sustitucion verificada]: restaurar descubrimiento de Marvel Limited Edition TPB Hombre Hormiga/Hombre Gigante cuando la fuente repare su enlace; conservar errores honestos y rotacion existente.
 - P2: investigar la latencia de /api/system/metrics con datos locales grandes: se observo timeout4s y el muestreo recorre data/ de forma sincrona. Causa/perfil pendientes; para operar se verifico cURL y dashboard sin esa consulta. No bloquea la correccion del resumen.
 - [BLOCKED 2026-10-23] Adopcion Linux timer: host desconocido; no desplegar. Cierre nativo Linux/macOS y compilacion AppleScript requieren esos entornos.
 
 # IN PROGRESS
 
-No hay tareas en curso.
+- [2026-11-05] P1 IN PROGRESS: correccion W45 v0.1.7 validada y activa,45fichas Panini recuperadas (34matched11pending_match),0errores de descarga restantes; UM404externo bloqueado por separado. Gate completo108pruebas JS/24fuentes y todos los motores100%, datos/configuracion/interfaz/tarea/apagado preservados. Falta commit/push y cierre documental. Recibos privados en data/source-review-017; no repetir reparacion confirmada.
 
 # DONE
 
