@@ -1,3 +1,8 @@
+# Servidor apagado verificado - 2026-11-06
+
+- DONE: Lucas solicita cerrar servidor si quedo prendido. Ya estaba apagado: procesos14736/1864 ausentes, netstat sin listener8787 y conexion TcpClient rechazada. Eliminados exclusivamente data/server.pid y data/telegram-bot.pid obsoletos con valores exactos14736/1864; ninguno reaparecio. Este estado reemplaza los PIDs activos historicos de abajo. No se inicio la app ni se modificaron fuentes/datos/configuracion/tarea semanal; version0.1.7 conservada.
+- Recuperacion actual: Get-CimInstance y Get-NetTCPConnection no pueden conectar CIM por recursos insuficientes del sistema. server-stop.ps1 devolvio1 antes de limpiar PID por ese fallo; no afirmar exito de ese launcher. Get-Process/name/start time + netstat.exe -ano -p tcp + TcpClient independientes permitieron verificar apagado y retirar solo los registros obsoletos; recibo/logs privados data/manual-stop-20261106*. No cambios de permisos ni bucles CIM. USER_QUEUE sin nuevos pendientes; cierre solo operacional/documental y sin observar CI remota.
+
 # Correspondencias W45 revisadas - 2026-11-05
 
 - DONE: revisadas las11fichas pendientes del recibo source-review-017;48originales contrastados con11.498issues locales,0candidatos/0vinculos creados. Todas siguen pending_match: sus originales exactos faltan en el catalogo. No confundir nombres parecidos ni inferir ausencia de personajes seguidos. Informe publicable CORRESPONDENCIAS_W45_20261105.md con tabla11/11 y fuentes oficiales; D-023. Main68a0a90 limpio al iniciar; esta entrega solo documental no incrementa0.1.7.
